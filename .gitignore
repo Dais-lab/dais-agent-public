@@ -1,0 +1,172 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.python-version
+
+# ===== Environment =====
+.env
+.env.*
+!.env.example
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# ===== Docker =====
+.docker/
+
+# ===== MLflow (로컬 캐시) =====
+mlruns/
+mlflow-artifacts/
+
+# ===== Airflow =====
+docker/airflow/logs/
+airflow.db
+airflow.cfg
+*.pid
+webserver_config.py
+
+# ===== Test / Coverage / Lint cache =====
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ===== uv / poetry =====
+# uv.lock 은 추적 (의존성 잠금 — 협업 시 같은 버전 보장, docs/STRUCTURE.md 참고)
+poetry.lock
+
+# ===== OS =====
+Thumbs.db
+
+# ===== Data =====
+# 실제 데이터는 무시하되 폴더 구조와 README 는 git 에 살림
+data/
+!data/README.md
+!data/**/
+!data/**/.gitkeep
+
+# ===== Model Weights =====
+# 사전훈련 / 학습된 모델 가중치 (.pth, 1GB+ 파일)
+# MLflow Registry + MinIO 가 버전 관리. 호스트 파일 자체는 git 에 안 올림.
+model/weights/
+
+# ===== Model training 코드 (외부 보관) =====
+# DINOv3 anomaly 학습/추론 응용 코드는 외부에 보관 (docs/EXTERNAL_CODE.md).
+# 호스트의 본 경로를 채워야 ml-* 가 동작. git 추적 절대 금지.
+model/dinov3_anomaly/
+
+# ===== CLAUDE.md =====
+CLAUDE.md
+
+# ===== Claude =====
+.claude/
+
+# ===== Jupyter =====
+.ipynb_checkpoints/
+
+# ===== Docker compose 로컬 override =====
+# 개발자별 커스텀 (docker compose 가 override.yml 을 자동 로드)
+docker/docker-compose.override.yml
+docker/docker-compose.*.local.yml
+
+# ===== ML 학습 산출물 (DINOv3) =====
+# 학습 체크포인트는 MLflow Registry + MinIO 가 진실의 원천
+model/dinov3_anomaly/results/
+model/dinov3_anomaly/output/
+
+# ===== Secrets / 인증서 =====
+*.pem
+*.key
+*.crt
+*.p12
+
+###=========================== OS ===========================###
+
+### Linux ###
+*~
+
+# temporary files which can be created if a process still has a handle open of a deleted file
+.fuse_hidden*
+
+# KDE directory preferences
+.directory
+
+# Linux trash folder which might appear on any partition or disk
+.Trash-*
+
+# .nfs files are created when an open file is removed but is still being accessed
+.nfs*
+
+### macOS ###
+# General
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Icon must end with two \r
+Icon
+
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+### macOS Patch ###
+# iCloud generated files
+*.icloud
+
+### Windows ###
+# Windows thumbnail cache files
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+
+# Dump file
+*.stackdump
+
+# Folder config file
+[Dd]esktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# Windows Installer files
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+
+# Windows shortcuts
+*.lnk

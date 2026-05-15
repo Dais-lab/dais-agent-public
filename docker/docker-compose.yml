@@ -1,0 +1,416 @@
+# ============================================================
+# dais_agent MLOps 인프라 스택
+# - 단일 network: dais_network
+# - DB 분리: mlflow_db / airflow_db (Postgres init 스크립트로 생성)
+# - Artifact: MinIO (s3://mlflow-artifacts/)
+# - 모든 서비스에 healthcheck 정의
+# ============================================================
+
+x-agent-common-env: &agent-common-env
+  LLM_BASE_URL: ${LLM_BASE_URL}
+  LLM_API_KEY: ${LLM_API_KEY}
+  LLM_MODEL: ${LLM_MODEL}
+  LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2}
+  LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
+  LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT}
+  LANGCHAIN_ENDPOINT: ${LANGCHAIN_ENDPOINT}
+
+x-agent-common: &agent-common
+  build:
+    context: ..
+    dockerfile: docker/agent/Dockerfile
+  restart: unless-stopped
+  networks:
+    - dais_network
+  volumes:
+    # 호스트의 data/ 를 모든 agent 가 공유 (rw — 추론 결과 저장)
+    - ../data:/opt/dais/data:rw
+
+x-agent-healthcheck: &agent-healthcheck
+  test:
+    - CMD
+    - python
+    - -c
+    - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"
+  interval: 30s
+  timeout: 5s
+  retries: 5
+  start_period: 30s
+
+x-ml-common: &ml-common
+  build:
+    context: ..
+    dockerfile: docker/model/Dockerfile
+  networks:
+    - dais_network
+  volumes:
+    # DINOv3 백본 repo (호스트에 clone 되어 있음 — facebookresearch/dinov3)
+    # 호스트 경로는 .env 의 HOST_DINOV3_BACKBONE 으로 설정
+    - ${HOST_DINOV3_BACKBONE:-./.placeholder_dinov3}:/opt/dinov3:ro
+    # 학습된/사전훈련 가중치 (.pth, gitignore — model/weights 안)
+    - ../model/weights:/opt/dais/weights:rw
+    # 데이터 (train/val/inference/output 모두 포함)
+    - ../data:/opt/dais/data:rw
+    # 코드 (dev 모드 — 코드 수정 시 rebuild 불필요)
+    # ↳ model/dinov3_anomaly/ 는 외부 코드라 git 추적 X (.gitignore).
+    #   배치 방법은 docs/EXTERNAL_CODE.md 참고.
+    - ../model:/opt/dais/code/model:rw
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+
+x-ml-common-env: &ml-common-env
+  MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+  MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+  PYTHONPATH: /opt/dais/code
+  NVIDIA_VISIBLE_DEVICES: all
+
+x-airflow-common-env: &airflow-common-env
+  AIRFLOW__CORE__EXECUTOR: ${AIRFLOW__CORE__EXECUTOR}
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN}
+  AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+  AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW__WEBSERVER__SECRET_KEY}
+  AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+  AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
+  # MLflow / MinIO 접근을 위한 변수 (DAG 에서 사용)
+  MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+  MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+
+x-airflow-common: &airflow-common
+  build:
+    context: ./airflow
+  user: "${AIRFLOW_UID:-50000}:0"
+  environment: *airflow-common-env
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - airflow_logs:/opt/airflow/logs
+    # model/ 폴더를 마운트해서 DAG 가 학습/추론 모듈을 import 할 수 있게 함
+    - ../model:/opt/dais/model:ro
+    # inference_pipeline 이 inbox 스캔 + archive 이동에 사용
+    - ../data:/opt/dais/data:rw
+  networks:
+    - dais_network
+
+services:
+
+  # ──────────────────────────────
+  # PostgreSQL (MLflow / Airflow 공용)
+  # ──────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: dais-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - dais_network
+
+  # ──────────────────────────────
+  # MinIO (S3 호환 Artifact Storage)
+  # ──────────────────────────────
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    container_name: dais-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - dais_network
+
+  # MinIO 버킷 자동 생성 (1회 실행 후 종료)
+  minio-init:
+    image: minio/mc:RELEASE.2024-10-08T09-37-26Z
+    container_name: dais-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      mc mb --ignore-existing local/${MINIO_BUCKET};
+      mc anonymous set none local/${MINIO_BUCKET};
+      echo '✅ bucket ${MINIO_BUCKET} ready';
+      "
+    networks:
+      - dais_network
+
+  # ──────────────────────────────
+  # MLflow Tracking Server
+  # ──────────────────────────────
+  mlflow:
+    build:
+      context: ./mlflow
+    container_name: dais-mlflow
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri ${MLFLOW_BACKEND_STORE_URI}
+      --default-artifact-root ${MLFLOW_ARTIFACT_ROOT}
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - dais_network
+
+  # ──────────────────────────────
+  # Airflow (LocalExecutor)
+  # ──────────────────────────────
+  airflow-init:
+    <<: *airflow-common
+    container_name: dais-airflow-init
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_ADMIN_USERNAME: ${AIRFLOW_ADMIN_USERNAME}
+      _AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+      _AIRFLOW_ADMIN_EMAIL: ${AIRFLOW_ADMIN_EMAIL}
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username "$${_AIRFLOW_ADMIN_USERNAME}" \
+          --password "$${_AIRFLOW_ADMIN_PASSWORD}" \
+          --firstname admin \
+          --lastname admin \
+          --role Admin \
+          --email "$${_AIRFLOW_ADMIN_EMAIL}" || true
+        echo '✅ airflow init done'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: dais-airflow-webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: dais-airflow-scheduler
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}" || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # ──────────────────────────────
+  # Prometheus
+  # ──────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: dais-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:9090/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - dais_network
+
+  # ──────────────────────────────
+  # Grafana
+  # ──────────────────────────────
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: dais-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - dais_network
+
+  # ──────────────────────────────
+  # ML Training (GPU, profile=train — make ml-train 으로만 기동)
+  #   docker compose --profile train run --rm ml-train python -m ...
+  # ──────────────────────────────
+  ml-train:
+    <<: *ml-common
+    container_name: dais-ml-train
+    environment: *ml-common-env
+    profiles: ["train"]
+    # idle 명령 — 'docker compose run' 시에는 override 됨
+    command: ["tail", "-f", "/dev/null"]
+
+  # ──────────────────────────────
+  # ML Inference (GPU FastAPI, 포트 8004)
+  #   profile=ml — Step 7 에서 api.py 작성 후 활성화 예정
+  # ──────────────────────────────
+  ml-inference:
+    <<: *ml-common
+    container_name: dais-ml-inference
+    environment: *ml-common-env
+    profiles: ["ml"]
+    command: >
+      uvicorn inference.api:app
+      --app-dir /opt/dais/code/model
+      --host 0.0.0.0
+      --port 8004
+    ports:
+      - "8004:8004"
+    healthcheck:
+      # 모델 로드(DINOv3 ViT-L + multitask classifier)에 30~60초 걸리므로 start_period 넉넉히
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 180s
+    restart: unless-stopped
+
+  # ──────────────────────────────
+  # Agents (독립 실행, 통신 없음)
+  #   - 공용 이미지(docker/agent/Dockerfile) + AGENT_NAME 으로 분기
+  #   - /health, /llm-check 엔드포인트 (Phase 5)
+  # ──────────────────────────────
+  data-agent:
+    <<: *agent-common
+    container_name: dais-data-agent
+    environment:
+      <<: *agent-common-env
+      AGENT_NAME: data_agent
+    ports:
+      - "8001:8000"
+    healthcheck: *agent-healthcheck
+
+  infra-agent:
+    <<: *agent-common
+    container_name: dais-infra-agent
+    environment:
+      <<: *agent-common-env
+      AGENT_NAME: infra_agent
+    ports:
+      - "8002:8000"
+    healthcheck: *agent-healthcheck
+
+  correction-agent:
+    <<: *agent-common
+    container_name: dais-correction-agent
+    environment:
+      <<: *agent-common-env
+      AGENT_NAME: correction_agent
+    ports:
+      - "8003:8000"
+    healthcheck: *agent-healthcheck
+
+# ──────────────────────────────
+# Volumes (영속성)
+#  - postgres_data        : DB 데이터
+#  - minio_data           : MLflow artifact 실데이터
+#  - airflow_logs         : Airflow 작업 로그
+#  - prometheus_data      : 시계열 메트릭
+#  - grafana_data         : 대시보드/세션
+#  - ./airflow/dags       : 호스트 마운트 (코드 즉시 반영)
+# ──────────────────────────────
+volumes:
+  postgres_data:
+    name: dais_postgres_data
+  minio_data:
+    name: dais_minio_data
+  airflow_logs:
+    name: dais_airflow_logs
+  prometheus_data:
+    name: dais_prometheus_data
+  grafana_data:
+    name: dais_grafana_data
+
+networks:
+  dais_network:
+    name: dais_network
+    driver: bridge

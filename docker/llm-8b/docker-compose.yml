@@ -1,0 +1,60 @@
+# 별도 GPU 서버 (외부) 에서 동작하는 단독 LLM 컨테이너 (8B 변형).
+#
+# 사용법: 같은 폴더의 deploy.sh 참고
+#   ./deploy.sh up      # 빌드 + 기동
+#   ./deploy.sh logs    # 로그 follow
+#   ./deploy.sh down    # 종료
+#
+# Hugging Face 토큰이 필요하면 .env 또는 환경변수로 주입:
+#   export HUGGING_FACE_HUB_TOKEN=hf_xxx
+
+name: dais-llm-8b
+
+services:
+  llm:
+    build: .
+    container_name: dais-llm-gemma-8b
+    restart: unless-stopped
+    ports:
+      # 호스트(8번) 포트 8100 ← 컨테이너 8000.
+      # 충돌 시 이 줄만 다른 포트로 변경.
+      - "8100:8000"
+    environment:
+      # Gemma gated repo 접근용 (필요 없으면 빈 값 OK)
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+      # vLLM 이 모델을 받는 경로 — named volume 에 캐시
+      HF_HOME: /root/.cache/huggingface
+    volumes:
+      # 모델 가중치 캐시 (한 번 다운로드 후 재사용)
+      # 26B 변형과 캐시 볼륨을 분리해서 상호 영향이 없도록 함.
+      - hf_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1                # GPU 1장만 사용
+              capabilities: [gpu]
+    # ipc=host 는 vLLM 권장 (multiprocessing/shared memory)
+    ipc: host
+    command:
+      - --model
+      - google/gemma-4-E4B-it
+      - --served-model-name
+      - gemma-4-e4b
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      # GPU 메모리 점유율
+      # E4B 는 weight 가 ~16GB (fp16) 수준이라 96GB GPU 에서 0.25 = 24GB 로 충분.
+      # KV cache 여유까지 보려면 0.30 까지 올려도 됨.
+      - --gpu-memory-utilization
+      - "0.40"
+      # OpenAI 호환 API 키 (선택). 빈 값이면 인증 없음.
+      # - --api-key
+      # - dais_gemma4_8b
+
+volumes:
+  hf_cache:
+    name: dais_llm_8b_hf_cache

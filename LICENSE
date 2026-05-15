@@ -1,0 +1,42 @@
+DaiS LAB — Proprietary License
+
+Copyright (c) 2026 DaiS LAB. All Rights Reserved.
+
+This source code is made publicly viewable for transparency and academic
+discussion only. No license is granted under this notice for any of the
+following without prior written permission from the copyright holder:
+
+  - use of the source code, in whole or in part, for any purpose;
+  - reproduction, modification, distribution, or sublicensing;
+  - creation of derivative works;
+  - public display or public performance;
+  - commercial or non-commercial deployment;
+  - inclusion of any portion of this code in another project, dataset,
+    model, or product.
+
+No rights are conveyed by implication, estoppel, or otherwise.
+
+Viewing this repository on GitHub or any source-hosting platform does not
+constitute a license to any of the rights enumerated above. Forking this
+repository through a hosting-platform UI does not convey any of the rights
+above; any fork retains the same restrictions.
+
+Portions of this repository may reference or depend on third-party software
+(e.g., facebookresearch/dinov3, MLflow, Apache Airflow, LangChain). Those
+third-party components remain under their respective licenses. Nothing in
+this notice extends, modifies, or waives the terms of those licenses.
+
+Some components used at runtime are not contained in this repository and
+are distributed separately under access control by the copyright holder
+(see docs/EXTERNAL_CODE.md). This notice does not authorize redistribution
+of any such externally-distributed components.
+
+For licensing inquiries, please contact the project maintainer.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.

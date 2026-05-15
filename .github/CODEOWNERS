@@ -1,0 +1,7 @@
+# CODEOWNERS — 자동 리뷰어 지정
+# 형식: <path pattern>  @user1 @user2 ...
+# 참고: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+#
+# 현재 정책: 모든 파일 공동 소유 (팀 리더 1명) — Phase 7 진행하며 폴더별 분배 검토.
+
+* @junhyeong7788

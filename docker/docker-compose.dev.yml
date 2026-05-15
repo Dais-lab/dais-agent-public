@@ -1,0 +1,15 @@
+# ============================================================
+# 개발용 오버라이드
+#   사용: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#   - Postgres 호스트 노출 (5432)
+#   - 디버그 로그 활성화
+# ============================================================
+
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  airflow-webserver:
+    environment:
+      AIRFLOW__LOGGING__LOGGING_LEVEL: DEBUG

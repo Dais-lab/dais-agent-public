@@ -1,0 +1,60 @@
+# 별도 GPU 서버 (외부) 에서 동작하는 단독 LLM 컨테이너.
+#
+# 사용법: 같은 폴더의 deploy.sh 참고
+#   ./deploy.sh up      # 빌드 + 기동
+#   ./deploy.sh logs    # 로그 follow
+#   ./deploy.sh down    # 종료
+#
+# Hugging Face 토큰이 필요하면 .env 또는 환경변수로 주입:
+#   export HUGGING_FACE_HUB_TOKEN=hf_xxx
+
+name: dais-llm
+
+services:
+  llm:
+    build: .
+    container_name: dais-llm-gemma
+    restart: unless-stopped
+    ports:
+      # 호스트(8번) 포트 8005 ← 컨테이너 8000.
+      # 기존 LLM 이 8000 을 점유 중이면 8005 가 충돌 회피.
+      # 충돌 시 이 줄만 다른 포트로 변경.
+      - "8005:8000"
+    environment:
+      # Gemma gated repo 접근용 (필요 없으면 빈 값 OK)
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+      # vLLM 이 모델을 받는 경로 — named volume 에 캐시
+      HF_HOME: /root/.cache/huggingface
+    volumes:
+      # 모델 가중치 캐시 (한 번 다운로드 후 재사용)
+      - hf_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1                # GPU 1장만 사용
+              capabilities: [gpu]
+    # ipc=host 는 vLLM 권장 (multiprocessing/shared memory)
+    ipc: host
+    command:
+      - --model
+      - google/gemma-4-26B-A4B-it
+      - --served-model-name
+      - gemma-4-26b
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      # GPU 메모리 점유율
+      # 96GB GPU 에서 0.4 = 38.4GB 인데 gemma-4-26B 의 weight 가 ~48.5GB 라 40%로는 시작 불가.
+      # 모델(48.5GB) + KV cache + activation 여유 합쳐 0.65~0.7 권장.
+      - --gpu-memory-utilization
+      - "0.70"
+      # OpenAI 호환 API 키 (선택). 빈 값이면 인증 없음.
+      # - --api-key
+      # - dais_gemma4
+
+volumes:
+  hf_cache:
+    name: dais_llm_hf_cache

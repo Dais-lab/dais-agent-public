@@ -1,0 +1,36 @@
+name: Lint
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+jobs:
+  ruff:
+    name: ruff (Python lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ruff
+        run: pip install ruff==0.6.9
+
+      - name: ruff check
+        # 외부 연구자 원본 코드(model/dinov3_anomaly/)는 pyproject.toml 에서 exclude.
+        run: ruff check .
+
+  yaml-syntax:
+    name: docker compose / yaml syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker compose config 검증
+        run: |
+          # .env 가 없으니 placeholder 로 채워서 syntax 만 검증
+          cp .env.example .env
+          docker compose -f docker/docker-compose.yml --env-file .env config > /dev/null

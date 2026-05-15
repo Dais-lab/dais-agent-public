@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: dais-local
+
+scrape_configs:
+  # Phase 2: Prometheus 자체 모니터링만 활성화.
+  # Phase 3 에서 postgres-exporter, airflow statsd 등 scrape target 추가 예정.
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090

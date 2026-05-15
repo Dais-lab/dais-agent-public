@@ -1,0 +1,51 @@
+# Python venv
+.venv/
+venv/
+env/
+
+# Python cache / build
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Test / lint cache
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Docs / notebooks
+docs/
+ml/notebooks/
+*.md
+!README.md
+
+# Airflow / MLflow runtime
+infra/airflow/logs/
+mlruns/
+mlflow-artifacts/
+
+# OS
+.DS_Store
+Thumbs.db
