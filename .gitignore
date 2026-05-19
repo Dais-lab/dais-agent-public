@@ -170,3 +170,6 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+# web
+web/

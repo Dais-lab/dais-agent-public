@@ -22,8 +22,8 @@ flowchart TB
         end
 
         subgraph storage[저장소]
-            Postgres[(PostgreSQL<br/>:5432<br/>mlflow_db / airflow_db)]
-            MinIO[(MinIO<br/>:9000/:9001<br/>mlflow-artifacts)]
+            Postgres[(PostgreSQL<br/>:5432<br/>mlflow_db / airflow_db / dais_data_db)]
+            MinIO[(MinIO<br/>:9000/:9001<br/>mlflow-artifacts / dais-images)]
         end
 
         subgraph agents[Agents - 독립 실행]
@@ -57,7 +57,8 @@ flowchart TB
 | Docker Network | 단일 network (`dais_network`) | 단순성 우선. 컨테이너 모두 한 네트워크. |
 | Compose project name | `dais` (고정) | 폴더명 변경 시 컨테이너/볼륨 충돌 방지 |
 | MLflow Artifact Storage | **MinIO** (S3 호환) | 모델 / 산출물 버전 저장 |
-| DB | 단일 Postgres 인스턴스, DB만 분리 (`mlflow_db`, `airflow_db`) | 초기 단계엔 인스턴스 하나로 충분 |
+| DB | 단일 Postgres 인스턴스, DB만 분리 (`mlflow_db`, `airflow_db`, `dais_data_db`) | `dais_data_db` 는 웹 대시보드 케이스/이미지/추론 메타데이터 (docs/IMAGE_STORAGE_REPORT.md) |
+| 운영 이미지 스토리지 | MinIO bucket 분리 (`mlflow-artifacts` ↔ `dais-images`) | MLflow 산출물과 운영 이미지(원본/heatmap/annotation) 분리 |
 | Agent 간 통신 | **없음** (각 Agent 독립 실행) | 각 Agent 는 자체 진입점, 단순한 의존 그래프 |
 | Agent Tracing | LangSmith | `LANGCHAIN_*` env 만 설정하면 자동 활성화 |
 | LLM | 외부 서버 (OpenAI 호환 endpoint) | 8번 서버 예시 — endpoint 변경은 `.env` 만 수정 |
