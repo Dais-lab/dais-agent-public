@@ -1,5 +1,6 @@
 .PHONY: help up down logs ps restart clean build init env-check psql airflow-shell mlflow-logs \
-        ml-build ml-train ml-register-existing ml-predict ml-shell ml-up ml-down ml-logs gpu-check ml-prepare
+        ml-build ml-train ml-register-existing ml-predict ml-shell ml-up ml-down ml-logs gpu-check ml-prepare\
+        web-build web-up web-down web-logs web-restart
 
 # .env 가 있으면 모든 변수를 Makefile 에 자동 로딩 (psql 등 헬퍼에서 사용)
 ifneq (,$(wildcard .env))
@@ -107,3 +108,22 @@ ml-down:  ## ml-inference 종료
 
 ml-logs:  ## ml-inference 로그
 	$(COMPOSE) --profile ml logs -f ml-inference
+
+# ──────────────────────────────
+# Web 대시보드 (Phase 6) — FastAPI :8005 + React 정적 서빙
+# ──────────────────────────────
+
+web-build:  ## 웹 이미지 빌드 (Node + Python multi-stage)
+	$(COMPOSE) build web
+
+web-up:  ## 웹 컨테이너 기동
+	$(COMPOSE) up -d web
+
+web-down:  ## 웹 컨테이너 종료
+	$(COMPOSE) stop web
+
+web-restart:  ## 웹 컨테이너 재기동
+	$(COMPOSE) restart web
+
+web-logs:  ## 웹 로그
+	$(COMPOSE) logs -f web

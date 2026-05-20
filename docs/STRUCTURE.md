@@ -87,7 +87,24 @@ dais_agent/
 │   │   └── test_llm_connectivity.py   # 외부 LLM endpoint + LangSmith trace 검증
 │   └── conftest.py
 │
+├── web/                               # 웹 대시보드 (Phase 6 추가)
+│   ├── Dockerfile                     # multi-stage: Node 빌드 → Python FastAPI :8005
+│   ├── .dockerignore
+│   ├── backend/                       # FastAPI 백엔드
+│   │   ├── main.py                    # app 진입점 + /api 라우터 + SPA 정적 서빙
+│   │   ├── config.py                  # 환경변수 → 설정 매핑
+│   │   ├── schemas.py                 # Pydantic 응답 스키마
+│   │   ├── db/                        # SQLAlchemy 2.0 async (cases/images/runs/predictions)
+│   │   ├── storage/minio_client.py    # presigned URL + 업로드 헬퍼
+│   │   └── routers/                   # cases / predict / dashboard / services
+│   └── frontend/                      # Vite + React + TS + Tailwind
+│       ├── src/pages/                 # Dashboard / CaseList / ModelManagement / Monitoring
+│       ├── src/components/            # Layout / Sidebar / Header / ChatPanel / StatusBadge / ...
+│       └── src/api/                   # 백엔드 호출 클라이언트 + 타입
+│
 ├── scripts/                           # 운영 헬퍼 스크립트
+│   ├── init_data_db_schema.sql        # dais_data_db 4 테이블 (CREATE IF NOT EXISTS, 멱등)
+│   └── import_case.py                 # inbox → MinIO + Postgres 등록 (10장 chunk)
 │
 ├── LICENSE                            # All Rights Reserved (외부 사용 금지)
 │
@@ -97,6 +114,7 @@ dais_agent/
 │   ├── SETUP.md                       # 상세 설치 / 트러블슈팅
 │   ├── MLFLOW_WORKFLOW.md             # 학습 → 등록 → 배포 흐름 (DINOv3 기준)
 │   ├── AGENTS.md                      # 각 Agent 책임 / 입출력 스키마
+│   ├── IMAGE_STORAGE_REPORT.md        # 웹 대시보드 DB 설계 (Postgres + MinIO)
 │   ├── STRUCTURE.md                   # (본 문서)
 │   ├── CONTRIBUTING.md                # 협업 규칙 / Git Flow 워크플로
 │   ├── GITHUB_ONBOARDING.md           # 신규 팀원 GitHub 협업 첫 가이드
@@ -119,7 +137,8 @@ dais_agent/
 | `data/` | 데이터셋 (학습 / 검증 / 추론) | 코드, weights |
 | `docs/`, `assets/` | 사람이 읽는 문서 / 자료 | 자동 생성 산출물 |
 | `tests/` | 단위 + 통합 테스트 | 운영 스크립트 |
-| `scripts/` | 운영 헬퍼 (헬스체크, 백업 등) | 비즈니스 로직 |
+| `scripts/` | 운영 헬퍼 (헬스체크, 백업, 데이터 import 등) | 비즈니스 로직 |
+| `web/` | 웹 대시보드 (백엔드 + 프론트 + Dockerfile) | 모델/Agent 로직 (재사용은 import) |
 
 > 폴더 경계가 흐려지면 새 합류자가 헷갈린다. PR 리뷰 시 "이 파일은 정말 이 폴더에 있어야 하는가?" 를 한 번 더 점검.
 
@@ -134,6 +153,8 @@ dais_agent/
 | `model/weights/*.pth` | ❌ | 1GB+ 가중치. MLflow Registry + MinIO 가 진실의 원천 |
 | `data/` 내 실제 파일 | ❌ | `README.md` + 빈 폴더 구조만 추적 |
 | `.venv/`, `__pycache__/` | ❌ | 가상환경 / 캐시 |
+| `web/frontend/node_modules/`, `dist/` | ❌ | Vite 빌드 산출물 — Dockerfile 안에서 생성 |
+| `CLAUDE.md` | ❌ | 작업자별 컨텍스트 메모 (협업 PR 와 무관) |
 | `uv.lock` | ✅ (추가 권장) | 의존성 잠금 — 협업 시 같은 버전 보장 |
 
 상세는 [.gitignore](../.gitignore) 참고.
