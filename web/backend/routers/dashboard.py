@@ -1,7 +1,7 @@
 """대시보드 요약 통계."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
@@ -38,7 +38,7 @@ async def dashboard(db: AsyncSession = Depends(get_db)) -> DashboardStats:
         )
     ).scalar_one()
 
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     cases_today = (
         await db.execute(
             select(func.count())

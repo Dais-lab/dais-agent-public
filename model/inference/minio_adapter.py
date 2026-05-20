@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -33,7 +32,9 @@ def _build_minio() -> tuple[Minio, str]:
 
 
 def download_images(images: list[dict[str, str]], target_dir: str) -> list[str]:
-    """images: [{image_id, filename, raw_object_key}, ...] → target_dir 에 다운로드 후 파일 경로 리스트.
+    """target_dir 에 이미지 다운로드 후 파일 경로 리스트 반환.
+
+    images: [{image_id, filename, raw_object_key}, ...]
 
     예외: MinIO 다운로드 실패 시 그대로 propagate.
     """
@@ -53,7 +54,9 @@ def upload_results(
     run_id: str,
     images_by_basename: dict[str, dict[str, str]],
 ) -> list[dict[str, Any]]:
-    """predict_case() 가 만든 폴더 구조(<basename>/{heatmap,annotation,result.json})를 MinIO 에 업로드.
+    """predict_case() 출력 폴더 구조를 MinIO 에 업로드.
+
+    구조: <basename>/{heatmap,annotation,result.json}
 
     output_case_dir: e.g. /tmp/<run_id>/output/<case_id>
     images_by_basename: filename(확장자 제외) → {image_id, filename}

@@ -13,7 +13,7 @@ import asyncio
 import logging
 import random
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -153,7 +153,7 @@ async def _run_inference(run_id: uuid.UUID, case_id_text: str) -> None:
             logger.error("run_id %s 사라짐 — 백그라운드 작업 중단", run_id)
             return
         run.status = "RUNNING"
-        run.started_at = datetime.now(timezone.utc)
+        run.started_at = datetime.now(UTC)
         await db.commit()
 
         # DB 에서 이미지 목록 조회 (ml-inference 에 넘길 페이로드)
@@ -176,7 +176,7 @@ async def _run_inference(run_id: uuid.UUID, case_id_text: str) -> None:
             await _persist_real_results(db, run, resp, id_by_filename)
             await _update_case_counts(db, run.case_id, run.id)
             run.status = "COMPLETED"
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = datetime.now(UTC)
             run.model_version = (
                 resp.get("model", {}).get("model_pth")
                 or resp.get("model", {}).get("pth_path")
@@ -188,7 +188,7 @@ async def _run_inference(run_id: uuid.UUID, case_id_text: str) -> None:
                 try:
                     await _populate_mock_predictions(db, run_id, run.case_id)
                     run.status = "COMPLETED"
-                    run.finished_at = datetime.now(timezone.utc)
+                    run.finished_at = datetime.now(UTC)
                     run.error_message = f"[MOCK] ml-inference unreachable: {exc}"
                     await _update_case_counts(db, run.case_id, run_id)
                     await db.commit()
@@ -198,7 +198,7 @@ async def _run_inference(run_id: uuid.UUID, case_id_text: str) -> None:
                     exc = mock_exc
 
             run.status = "FAILED"
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = datetime.now(UTC)
             run.error_message = str(exc)
             await db.commit()
 
@@ -305,4 +305,4 @@ async def _update_case_counts(
     case.defect_count = counts[0] or 0
     case.normal_count = counts[1] or 0
     case.status = "COMPLETED"
-    case.updated_at = datetime.now(timezone.utc)
+    case.updated_at = datetime.now(UTC)

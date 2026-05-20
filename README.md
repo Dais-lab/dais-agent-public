@@ -126,12 +126,12 @@ curl -X POST http://localhost:8004/predict \
 
 ```bash
 make web-build              # multi-stage: Node 빌드 → Python FastAPI 정적 서빙
-make web-up                 # http://localhost:8005 또는 http://203.250.72.36:8005
+make web-up                 # http://localhost:8005 (원격 호스트면 http://<HOST>:8005)
 
 # 기존 inbox 데이터를 DB + MinIO 에 등록 (최초 1회)
 docker run --rm --network dais_network \
   -v "$(pwd):/app" \
-  -v "/home/dais02/dais_agent/data/inference/inbox/20260507_test:/data:ro" \
+  -v "${INBOX_DIR:?set INBOX_DIR in .env, e.g. /path/to/inbox}/20260507_test:/data:ro" \
   -w /app --env-file .env \
   -e SCRIPT_DB_HOST=postgres -e SCRIPT_MINIO_HOST=minio \
   ghcr.io/astral-sh/uv:python3.11-bookworm \

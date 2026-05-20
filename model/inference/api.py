@@ -28,6 +28,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
+from minio_adapter import run_predict_via_minio  # noqa: E402
 from predict import (  # noqa: E402
     DEFAULT_CONFIG,
     DEFAULT_MODEL_URI,
@@ -35,7 +36,6 @@ from predict import (  # noqa: E402
     load_inference_model,
     predict_case,
 )
-from minio_adapter import run_predict_via_minio  # noqa: E402
 
 DEFAULT_INBOX_ROOT = "/opt/dais/data/inference/inbox"
 DEFAULT_OUTPUT_ROOT = "/opt/dais/data/output"

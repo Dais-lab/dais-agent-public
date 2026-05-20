@@ -14,7 +14,7 @@
 
 실행 (호스트):
     uv run scripts/import_case.py \\
-        --source-dir /home/dais02/dais_agent/data/inference/inbox/20260507_test
+        --source-dir <YOUR_INBOX_DIR>/20260507_test
 
 또는 venv:
     pip install psycopg2-binary minio python-dotenv
@@ -25,7 +25,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import psycopg2
@@ -50,14 +50,18 @@ MINIO_PASSWORD = os.getenv("MINIO_ROOT_PASSWORD", "")
 IMAGE_BUCKET = os.getenv("IMAGE_BUCKET", "dais-images")
 
 CHUNK_SIZE = 10
-START_DATE = datetime(2026, 5, 7, 0, 0, 0, tzinfo=timezone.utc)
+START_DATE = datetime(2026, 5, 7, 0, 0, 0, tzinfo=UTC)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-dir", type=Path, required=True)
     parser.add_argument("--chunk-size", type=int, default=CHUNK_SIZE)
-    parser.add_argument("--dry-run", action="store_true", help="DB/MinIO 변경 없이 분할 결과만 출력")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="DB/MinIO 변경 없이 분할 결과만 출력",
+    )
     args = parser.parse_args()
 
     src: Path = args.source_dir
@@ -75,7 +79,10 @@ def main() -> int:
     if args.dry_run:
         for i, chunk in enumerate(chunks):
             date = START_DATE + timedelta(days=i)
-            print(f"  [{i + 1:2d}] {date.strftime('%Y%m%d')}_001  inspected={date.date()}  imgs={len(chunk)}")
+            print(
+                f"  [{i + 1:2d}] {date.strftime('%Y%m%d')}_001  "
+                f"inspected={date.date()}  imgs={len(chunk)}"
+            )
         return 0
 
     conn = psycopg2.connect(

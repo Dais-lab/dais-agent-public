@@ -44,10 +44,13 @@ SERVICE_URLS: dict[str, str] = {
     "ml-inference": f"{ML_INFERENCE_URL}/health",
 }
 
-# CORS: React dev 서버 (Vite) + 운영 도메인 허용
+# CORS: React dev 서버 (Vite) + 운영 도메인 허용.
+# .env 의 CORS_ORIGINS (쉼표 구분) 에서 읽음. 운영 시 실제 도메인/IP 로 교체.
 CORS_ORIGINS: list[str] = [
-    "http://localhost:5173",
-    "http://localhost:8005",
-    "http://203.250.72.36:5173",
-    "http://203.250.72.36:8005",
+    o.strip()
+    for o in os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:5173,http://localhost:8005",
+    ).split(",")
+    if o.strip()
 ]
