@@ -70,6 +70,11 @@ x-ml-common-env: &ml-common-env
   AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
   PYTHONPATH: /opt/dais/code
   NVIDIA_VISIBLE_DEVICES: all
+  # Phase 4: MinIO 어댑터 (model/inference/minio_adapter.py) 사용 시
+  MINIO_INTERNAL_ENDPOINT: minio:9000
+  MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+  MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+  IMAGE_BUCKET: ${IMAGE_BUCKET}
 
 x-airflow-common-env: &airflow-common-env
   AIRFLOW__CORE__EXECUTOR: ${AIRFLOW__CORE__EXECUTOR}
@@ -162,6 +167,9 @@ services:
       mc mb --ignore-existing local/${MINIO_BUCKET};
       mc anonymous set none local/${MINIO_BUCKET};
       echo '✅ bucket ${MINIO_BUCKET} ready';
+      mc mb --ignore-existing local/${IMAGE_BUCKET};
+      mc anonymous set none local/${IMAGE_BUCKET};
+      echo '✅ bucket ${IMAGE_BUCKET} ready';
       "
     networks:
       - dais_network
@@ -388,6 +396,42 @@ services:
     ports:
       - "8003:8000"
     healthcheck: *agent-healthcheck
+
+  # ──────────────────────────────
+  # Web 대시보드 (Phase 6): FastAPI 8005 + React 정적 서빙
+  # ──────────────────────────────
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    container_name: dais-web
+    environment:
+      DATA_DATABASE_URL: ${DATA_DATABASE_URL}
+      IMAGE_BUCKET: ${IMAGE_BUCKET}
+      MINIO_INTERNAL_ENDPOINT: minio:9000
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-localhost:9000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8005}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      ML_INFERENCE_URL: ${ML_INFERENCE_URL}
+      ML_INFERENCE_TIMEOUT_SEC: ${ML_INFERENCE_TIMEOUT_SEC}
+      ML_INFERENCE_MOCK_ON_FAILURE: ${ML_INFERENCE_MOCK_ON_FAILURE}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "8005:8005"
+    networks:
+      - dais_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
 # ──────────────────────────────
 # Volumes (영속성)

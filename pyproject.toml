@@ -36,6 +36,12 @@ dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
 ]
+# 웹 백엔드 (web/backend, FastAPI :8005) — CLAUDE.md Phase 3
+web = [
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.29",
+    "minio>=7.2",
+]
 
 # ──────────────────────────────
 # Build (hatch)
@@ -75,6 +81,22 @@ ignore = []
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["E501"]
+
+# FastAPI의 Depends/Query/Body 등은 인자 default 위치에서 호출하는 게 표준 패턴.
+# B008 (function-call-in-default-argument) 에서 예외 처리.
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.params.Depends",
+    "fastapi.params.Query",
+]
 
 # ──────────────────────────────
 # Mypy

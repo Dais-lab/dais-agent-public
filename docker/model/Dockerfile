@@ -33,13 +33,14 @@ RUN grep -ivE '^(torch==|torchvision==|triton==|nvidia-)' /tmp/dinov3_requiremen
         > /tmp/req_filtered.txt \
     && pip install -r /tmp/req_filtered.txt
 
-# dais_agent 추가 의존성 (MLflow, FastAPI, boto3)
+# dais_agent 추가 의존성 (MLflow, FastAPI, boto3, MinIO 어댑터)
 RUN pip install \
         mlflow==2.18.0 \
         boto3==1.35.36 \
         "fastapi>=0.115,<0.120" \
         "uvicorn[standard]>=0.30.0,<0.35" \
-        "pydantic>=2.9.0,<3.0"
+        "pydantic>=2.9.0,<3.0" \
+        "minio>=7.2,<8.0"
 
 # 코드는 compose 볼륨으로 호스트에서 마운트되므로 PYTHONPATH 만 설정
 ENV PYTHONPATH=/opt/dais/code

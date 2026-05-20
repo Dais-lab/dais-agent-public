@@ -19,6 +19,8 @@
 | Infra Agent | 8002 | 8000 | O | **활성** | /health, /llm-check (Phase 5) |
 | Correction Agent | 8003 | 8000 | O | **활성** | /health, /llm-check (Phase 5) |
 | **ml-inference** | 8004 | 8004 | O | **활성** | DINOv3 추론 FastAPI (`/health`, `/model`, `/predict`, `/reload`) — `make ml-up` |
+| **Web Backend** | 8005 | 8005 | O | 예약 | FastAPI 웹 대시보드 (`web/backend/`). CLAUDE.md Phase 3 진행 중 |
+| Web Frontend (dev) | 5173 | 5173 | △ | 예약 | Vite dev 서버 — dev only. prod는 8005가 정적 서빙 |
 
 ## 상태 표시 규칙
 - **예약**: 포트 번호만 잡아둠 (서비스 미구현)

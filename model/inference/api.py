@@ -28,6 +28,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
+from minio_adapter import run_predict_via_minio  # noqa: E402
 from predict import (  # noqa: E402
     DEFAULT_CONFIG,
     DEFAULT_MODEL_URI,
@@ -69,15 +70,34 @@ app = FastAPI(
 # ──────────────────────────────────────────────────────────────────────
 # Schemas
 # ──────────────────────────────────────────────────────────────────────
+class ImageRef(BaseModel):
+    """웹 백엔드가 전달하는 단일 이미지 참조 — MinIO 모드 전용."""
+
+    image_id: str
+    filename: str
+    raw_object_key: str
+
+
 class PredictRequest(BaseModel):
     case_id: str | None = Field(
         None,
-        description=f"inbox 안의 폴더명. 자동으로 {DEFAULT_INBOX_ROOT}/<case_id> 로 해석",
+        description=f"inbox 모드: {DEFAULT_INBOX_ROOT}/<case_id> 폴더 처리. "
+        "MinIO 모드: images 와 함께 전달되면 MinIO 기반 처리.",
     )
     case_dir: str | None = Field(
         None,
-        description="case_id 대신 절대 경로 직접 지정 (case_id 와 둘 중 하나 필수)",
+        description="case_id 대신 절대 경로 직접 지정 (case_dir / case_id / images 중 하나 필수)",
     )
+    # MinIO 모드 추가 필드 — 웹 백엔드(web/backend)가 채워 보냄
+    run_id: str | None = Field(
+        None,
+        description="MinIO 모드: 백엔드의 inference_runs.id (UUID 문자열)",
+    )
+    images: list[ImageRef] | None = Field(
+        None,
+        description="MinIO 모드: 처리할 이미지 목록. 비어 있으면 inbox/case_dir 모드.",
+    )
+
     output_root: str = DEFAULT_OUTPUT_ROOT
     overlay_alpha: float = 0.5
     bbox_min_area: int = 50
@@ -131,10 +151,31 @@ async def predict(req: PredictRequest) -> dict[str, Any]:
             status_code=503,
             detail=f"모델 미로드: {_state['load_error']}",
         )
+
+    # MinIO 모드 — 웹 백엔드가 case_id + run_id + images 전달
+    if req.images and req.case_id and req.run_id:
+        try:
+            return await asyncio.to_thread(
+                run_predict_via_minio,
+                case_id=req.case_id,
+                run_id=req.run_id,
+                images=[img.model_dump() for img in req.images],
+                predict_case_fn=predict_case,
+                output_root="/tmp/dais-runs",
+                overlay_alpha=req.overlay_alpha,
+                bbox_min_area=req.bbox_min_area,
+                preloaded=_state["preloaded"],
+                config_path=DEFAULT_CONFIG,
+            )
+        except Exception as exc:  # noqa: BLE001
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    # 기존 inbox / case_dir 모드 (CLI / DAG 호환)
     if not req.case_dir and not req.case_id:
         raise HTTPException(
             status_code=400,
-            detail="case_id 또는 case_dir 중 하나는 필수",
+            detail="case_id, case_dir, 또는 (case_id + run_id + images) 중 하나는 필수",
         )
 
     case_dir = req.case_dir or os.path.join(DEFAULT_INBOX_ROOT, req.case_id)

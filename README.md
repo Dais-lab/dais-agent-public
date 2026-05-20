@@ -25,11 +25,10 @@
 | Prometheus | http://localhost:9090 | 메트릭 수집 |
 | MinIO Console | http://localhost:9001 | Artifact Storage |
 | ml-inference | http://localhost:8004 | 결함 추론 FastAPI (`/health`, `/predict`) |
+| **Web Dashboard** | http://localhost:8005 | **결함 탐지 웹 대시보드 (React + FastAPI)** — `/api/docs` Swagger UI |
 | Data Agent | http://localhost:8001 | (Phase 7 작업 중) |
 | Infra Agent | http://localhost:8002 | (Phase 7 작업 중) |
 | Correction Agent | http://localhost:8003 | (Phase 7 작업 중) |
-
-> 원격 호스트에서 운용 중인 경우 `localhost` 대신 해당 호스트의 IP/도메인을 사용.
 
 포트 전체 정리: [docs/PORTS.md](docs/PORTS.md)
 
@@ -53,7 +52,8 @@
 
 - 단일 Docker network `dais_network` — 모든 컨테이너가 한 네트워크에서 통신
 - MLflow Artifact = **MinIO** (S3 호환) — 모델 / 산출물 버전 저장
-- Postgres 인스턴스 1개 / DB 분리 (`mlflow_db`, `airflow_db`) — 메타데이터
+- Postgres 인스턴스 1개 / DB 분리 (`mlflow_db`, `airflow_db`, `dais_data_db`) — 메타데이터
+- 웹 대시보드용 이미지 스토리지 = MinIO bucket `dais-images` (MLflow artifact 와 분리)
 - Agent 간 통신 **없음** — 각 Agent 는 독립 컨테이너 + 자체 진입점
 - LangSmith 자동 tracing — `LANGCHAIN_*` 환경변수만 있으면 모든 LLM 호출 추적
 
@@ -122,6 +122,29 @@ curl -X POST http://localhost:8004/predict \
 
 학습부터 다시 돌리려면 `make ml-train`. 자세한 흐름: [docs/MLFLOW_WORKFLOW.md](docs/MLFLOW_WORKFLOW.md).
 
+### 5-4. 웹 대시보드 (결함 탐지 UI)
+
+```bash
+make web-build              # multi-stage: Node 빌드 → Python FastAPI 정적 서빙
+make web-up                 # http://localhost:8005 (원격 호스트면 http://<HOST>:8005)
+
+# 기존 inbox 데이터를 DB + MinIO 에 등록 (최초 1회)
+docker run --rm --network dais_network \
+  -v "$(pwd):/app" \
+  -v "${INBOX_DIR:?set INBOX_DIR in .env, e.g. /path/to/inbox}/20260507_test:/data:ro" \
+  -w /app --env-file .env \
+  -e SCRIPT_DB_HOST=postgres -e SCRIPT_MINIO_HOST=minio \
+  ghcr.io/astral-sh/uv:python3.11-bookworm \
+  uv run scripts/import_case.py --source-dir /data
+```
+
+- **대시보드 페이지**: 외부 서비스 링크 / KPI / 서비스 헬스 / 최근 케이스
+- **결함 탐지 페이지**: 날짜별 케이스 목록 → 이미지 10장씩 → "결함 탐지 실행" → heatmap/annotation
+- **모델 관리 / 모니터링**: 일부 영역 `예시` (추후 MLflow API / Prometheus 연동)
+- ml-inference 미가동 시 mock fallback 으로 UI 흐름 검증 가능 (`ML_INFERENCE_MOCK_ON_FAILURE=true`)
+
+DB 스키마 / MinIO key 규칙: [docs/IMAGE_STORAGE_REPORT.md](docs/IMAGE_STORAGE_REPORT.md)
+
 ---
 
 ## 6. 파일 구조
@@ -131,10 +154,11 @@ dais_agent/
 ├── docker/      # MLOps 인프라 정의 (compose, Dockerfile, 각 서비스 설정)
 ├── model/       # DINOv3 anomaly 학습/추론 코드 + weights (gitignore)
 ├── agents/      # 4개 Agent — LangChain/LangGraph (Phase 7 작업 중)
+├── web/         # 웹 대시보드 (FastAPI 백엔드 + Vite React 프론트, multi-stage Dockerfile)
 ├── data/        # 학습 / 검증 / 추론 데이터 (gitignore, README/구조만 추적)
 ├── docs/        # 아키텍처 · 포트 · 워크플로 문서
 ├── tests/       # 단위 + 통합 테스트
-├── scripts/     # 운영 헬퍼 스크립트
+├── scripts/     # 운영 헬퍼 스크립트 (import_case.py, init_data_db_schema.sql 등)
 └── assets/      # 프로젝트 소개 자료 · 다이어그램
 ```
 
@@ -156,6 +180,7 @@ dais_agent/
 | [docs/SETUP.md](docs/SETUP.md) | 상세 설치 / 트러블슈팅 |
 | [docs/MLFLOW_WORKFLOW.md](docs/MLFLOW_WORKFLOW.md) | 학습 → 등록 → 배포 흐름 (DINOv3 기준) |
 | [docs/AGENTS.md](docs/AGENTS.md) | 각 Agent 책임 / 입출력 / 활용 자원 |
+| [docs/IMAGE_STORAGE_REPORT.md](docs/IMAGE_STORAGE_REPORT.md) | 웹 대시보드 DB 설계 (Postgres + MinIO) / 추론 결과 스키마 |
 | [agents/README.md](agents/README.md) | Agent 개발 온보딩 가이드 (팀원용) |
 | [data/README.md](data/README.md) | 데이터 폴더 컨벤션 / 추론 결과 스키마 |
 
@@ -170,6 +195,8 @@ make build                               # 인프라 + Agent 이미지 재빌드
 make ml-build / ml-up / ml-down          # GPU 컨테이너
 make ml-register-existing                # 기존 .pth → MLflow Registry + Production 승격
 make ml-predict CASE=<case_id>           # 단발 추론 (CLI)
+make web-build / web-up / web-down       # 웹 대시보드 (:8005)
+make web-logs / web-restart              # 웹 로그 / 재기동
 make ml-shell / airflow-shell / psql     # 디버깅 진입
 make clean                               # 컨테이너 + 볼륨 모두 삭제 (데이터 손실, 주의)
 ```
@@ -190,5 +217,7 @@ make clean                               # 컨테이너 + 볼륨 모두 삭제 (
 
 ## 10. 진행 상황
 
-**인프라 + Agent 환경 + DINOv3 anomaly detection 통합** 완료.
+**인프라 + Agent 환경 + DINOv3 anomaly detection + 웹 대시보드(:8005) 통합** 완료.
 현재 **Agent 로직 구현** 작업 중. 새 합류자는 [agents/README.md](agents/README.md) 부터 읽기 권장.
+
+웹 대시보드의 결함 탐지 흐름(케이스 목록 → 이미지 그리드 → 탐지 실행 → heatmap/annotation 표시)이 동작 한다. 실제 추론은 GPU + MLflow Production 모델 필요. 미가동 시 mock fallback 으로 UI 검증 가능.
