@@ -70,11 +70,11 @@ model/weights/
 # 호스트의 본 경로를 채워야 ml-* 가 동작. git 추적 절대 금지.
 model/dinov3_anomaly/
 
-# ===== CLAUDE.md =====
-CLAUDE.md
-
-# ===== Claude =====
-.claude/
+# ===== Claude (팀 공유) =====
+# CLAUDE.md 와 .claude/rules/ 는 팀 공통 규칙 — git 추적함.
+# 단, 개인 로컬 설정/캐시는 제외.
+.claude/settings.local.json
+.claude/cache/
 
 # ===== Jupyter =====
 .ipynb_checkpoints/

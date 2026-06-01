@@ -154,7 +154,7 @@ dais_agent/
 | `data/` 내 실제 파일 | ❌ | `README.md` + 빈 폴더 구조만 추적 |
 | `.venv/`, `__pycache__/` | ❌ | 가상환경 / 캐시 |
 | `web/frontend/node_modules/`, `dist/` | ❌ | Vite 빌드 산출물 — Dockerfile 안에서 생성 |
-| `CLAUDE.md` | ❌ | 작업자별 컨텍스트 메모 (협업 PR 와 무관) |
+| `CLAUDE.md`, `.claude/rules/` | ✅ | 팀 공통 규칙 (Claude·사람 공용). 개인 설정 `.claude/settings.local.json` 만 gitignore |
 | `uv.lock` | ✅ (추가 권장) | 의존성 잠금 — 협업 시 같은 버전 보장 |
 
 상세는 [.gitignore](../.gitignore) 참고.

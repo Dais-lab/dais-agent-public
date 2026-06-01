@@ -19,7 +19,7 @@
 | Infra Agent | 8002 | 8000 | O | **활성** | /health, /llm-check (Phase 5) |
 | Correction Agent | 8003 | 8000 | O | **활성** | /health, /llm-check (Phase 5) |
 | **ml-inference** | 8004 | 8004 | O | **활성** | DINOv3 추론 FastAPI (`/health`, `/model`, `/predict`, `/reload`) — `make ml-up` |
-| **Web Backend** | 8005 | 8005 | O | 예약 | FastAPI 웹 대시보드 (`web/backend/`). CLAUDE.md Phase 3 진행 중 |
+| **Web Backend** | 8005 | 8005 | O | **활성** | FastAPI 웹 대시보드 (`web/backend/`) |
 | Web Frontend (dev) | 5173 | 5173 | △ | 예약 | Vite dev 서버 — dev only. prod는 8005가 정적 서빙 |
 
 ## 상태 표시 규칙
@@ -36,3 +36,26 @@
 - `O` : 호스트에서 `localhost:포트`로 접근 가능
 - `△` : 개발 환경에서만 노출 (`docker-compose.dev.yml`)
 - `X` : 컨테이너 네트워크 내부에서만 접근
+
+---
+
+## 팀별 dev 포트 (공용 서버에서 동시 작업)
+
+> 여러 팀이 한 서버에 SSH로 들어와 **Agent 개발 → 웹 연결 테스트 → push** 한다.
+> 위 표의 포트는 **영구(운영) 포트** — push 되면 이 번호로 합쳐진다.
+> 테스트는 운영을 건드리지 않도록 **팀 오프셋 포트**로 띄운다 (commit 안 함).
+
+**공식**: `dev 포트 = 기준 포트 + 팀 오프셋`
+
+| 팀 | 오프셋 | web backend | 자기 agent | Vite |
+|---|---|---|---|---|
+| (운영/기준) | +0 | 8005 | 8006~ | 5173 |
+| **Data Agent팀** | +100 | 8105 | 8106~ | 5174 |
+| **Infra Agent팀** | +200 | 8205 | 8206~ | 5175 |
+| **Correction Agent팀** | +300 | 8305 | 8306~ | 5176 |
+| (새 Agent팀) | +400~ | 8405 | 8406~ | 5177 |
+
+규칙:
+- **공유 인프라**(postgres/minio/mlflow/airflow/grafana/prometheus)는 서버에 1개만, 오프셋 없이 공용. 테스트로 `make up`(`-p dais`)·운영 :8005 를 건드리지 않는다.
+- 오프셋은 각자 `.env` 에만 둔다 (`PORT_OFFSET=100` 등). **코드/compose/PORTS.md 에는 영구 포트만** 박는다.
+- 화면(프론트)만 수정/확인이면 자기 Vite 포트 하나면 된다 (`VITE_API_TARGET` 으로 공유 백엔드에 붙임). 백엔드 코드까지 고치면 자기 uvicorn 포트도 띄운다.
