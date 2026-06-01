@@ -36,7 +36,7 @@ dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
 ]
-# 웹 백엔드 (web/backend, FastAPI :8005) — CLAUDE.md Phase 3
+# 웹 백엔드 (web/backend, FastAPI :8005)
 web = [
     "sqlalchemy[asyncio]>=2.0",
     "asyncpg>=0.29",
