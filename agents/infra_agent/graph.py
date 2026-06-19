@@ -11,12 +11,22 @@ LLM 호출은 agents.common.get_llm() 으로 통일.
 from __future__ import annotations
 
 import json
+import os
 from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
 from agents.common import get_llm
 from agents.common.tools import infra as tools
+
+# LLM 다운 시 무한 대기 방지 — 요청 타임아웃·재시도 제한 (env 로 조절)
+LLM_TIMEOUT = float(os.getenv("INFRA_LLM_TIMEOUT", "20"))
+LLM_RETRIES = int(os.getenv("INFRA_LLM_RETRIES", "1"))
+
+
+def _llm():
+    """타임아웃·재시도 제한이 걸린 LLM 클라이언트 (죽은 LLM 에 매달리지 않도록)."""
+    return get_llm(timeout=LLM_TIMEOUT, max_retries=LLM_RETRIES)
 
 
 class AgentState(TypedDict, total=False):
@@ -37,7 +47,7 @@ class AgentState(TypedDict, total=False):
 
 def _llm_json(prompt: str) -> Any:
     """LLM 응답에서 JSON 파싱 (코드펜스/잡텍스트 허용, 실패 시 [])."""
-    raw = str(get_llm().invoke(prompt).content).strip()
+    raw = str(_llm().invoke(prompt).content).strip()
     if "```" in raw:
         raw = raw.split("```")[1]
         if raw.lstrip().startswith("json"):
@@ -155,7 +165,7 @@ def summarize_notify(state: AgentState) -> AgentState:
             f"전체상태={overall}\n{body}"
         )
         try:
-            summary = str(get_llm().invoke(prompt).content).strip()
+            summary = str(_llm().invoke(prompt).content).strip()
         except Exception as exc:  # noqa: BLE001  LLM 다운 시에도 보고는 나가야 함
             summary = f"[Infra] {overall}: 이상 {len(incidents)}건 (요약 LLM 실패: {exc})\n{body}"
     notified = tools.send_discord(summary) if overall != "healthy" else False
