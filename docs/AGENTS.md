@@ -45,11 +45,14 @@ resp = llm.invoke("hello")  # LangSmith 에 자동 trace 기록
 
 | 항목 | 내용 |
 |---|---|
-| 책임 | TBD — 인프라 관리 (컨테이너 상태/리소스/스케줄 등) |
-| Trigger | TBD |
-| Input Schema | TBD |
-| Output Schema | TBD |
-| 외부 시스템 의존 | TBD |
+| 책임 | MLOps 스택(ml-inference · Airflow · MLflow · MinIO · Postgres) 헬스 감시 → 이상 시 로그·지표로 원인 진단 → 구체적 복구 방법 제안 → 자연어 요약 알림. **인프라 상태는 변경하지 않음 (read-only)** |
+| Trigger | ① Cron (주기 헬스체크, 2~5분 간격)  ② HTTP `POST /run` (수동·외부 알림으로 즉시 점검) |
+| Input Schema | `InfraCheckRequest` — `targets: list[str]`(점검 대상, 기본=전체) · `mode: "observe" \| "propose"`(observe=상태+알림, propose=원인 진단+복구 제안까지) · `trigger: "cron" \| "manual" \| "alert"` |
+| Output Schema | `InfraReport` — `overall: "healthy" \| "degraded" \| "down"` · `services: list[ServiceStatus{name, status, latency_ms, evidence}]` · `incidents: list[Incident{service, root_cause, severity, suggested_action, confidence, evidence}]` · `summary_ko: str`(Discord 알림 문구) · `notified: bool` |
+| 외부 시스템 의존 | docker(로그·상태 조회, 읽기) · ml-inference REST(:8004) · MLflow REST(:5000) · Airflow REST(:8080) · Prometheus(:9090) · Discord webhook(알림) |
+| Side Effects | **없음 — read-only.** 인프라 상태를 변경하지 않고 진단·제안만 수행. 유일한 외부 동작은 Discord 알림 발송 |
+| 재시도 정책 | 헬스체크 호출은 tenacity 2~3회(짧은 타임아웃). 1회 실패=불확실, 연속 실패=`down` 판정 (일시 변동 vs 지속 악화 구분) |
+| LLM 호출 횟수 | 정상 시 0회(룰 기반 통과). 이상 1건당 ≈2회(원인분석 1 + 요약 1). 가설 병렬검증 사용 시 가설 수만큼 추가 |
 | 포트 | 8002 |
 
 ---
@@ -138,7 +141,7 @@ GET  http://mlflow:5000/api/2.0/mlflow/registered-models/get?name=dais_anomaly
 - ml-inference / Airflow 상태 모니터링
 - MLflow Production 모델 버전 추적
 - 디스크 사용량 / 추론 큐 길이 점검
-- 이상 시 Slack/이메일 알림 등
+- 이상 시 Discord/이메일 알림 등
 
 ### Correction Agent
 - 추론 결과 (`anomaly_score`, `bboxes`) 검토
