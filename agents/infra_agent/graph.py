@@ -128,8 +128,16 @@ def summarize_notify(state: AgentState) -> AgentState:
     incidents = state.get("incidents", [])
     overall = _overall(incidents, services)
     propose = state.get("mode") == "propose"
-    if not incidents:
+    if overall == "healthy":
         summary = f"[Infra] 전체 정상 — {len(services)}개 서비스 healthy."
+    elif not incidents:
+        # 이상은 있으나 진단(incidents)을 못 만든 경우 (예: LLM 다운)
+        bad = ", ".join(
+            f"{s['name']}({s['status']})"
+            for s in services
+            if s["status"] in ("down", "degraded")
+        )
+        summary = f"[Infra] {overall} — 이상: {bad}. 원인 진단 실패(LLM 등), 수동 확인 필요."
     else:
         lines = []
         for i in incidents:
