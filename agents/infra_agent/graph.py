@@ -118,7 +118,8 @@ def verify(state: AgentState) -> AgentState:
         ):
             confidence = 0.85
             ev.append("로그에서 OOM/killed 흔적")
-        if ("디스크" in rc or "disk" in rc) and isinstance(disk, dict) and disk.get("used_pct", 0) >= 90:
+        disk_full = isinstance(disk, dict) and disk.get("used_pct", 0) >= 90
+        if ("디스크" in rc or "disk" in rc) and disk_full:
             confidence = 0.85
             ev.append(f"디스크 사용 {disk.get('used_pct')}%")
         incidents.append({
