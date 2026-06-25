@@ -36,6 +36,8 @@ class AgentState(TypedDict, total=False):
     trigger: Literal["cron", "manual", "alert"]
     # --- 진행 상태 ---
     services: list[dict[str, Any]]
+    containers: list[dict[str, Any]]
+    gpu: Any
     unhealthy: list[dict[str, Any]]
     hypotheses: list[dict[str, Any]]
     incidents: list[dict[str, Any]]
@@ -72,12 +74,36 @@ def _overall(incidents: list, services: list) -> str:
     return "healthy"
 
 
+def _container_for(name: str, containers: list[dict[str, Any]]) -> str | None:
+    """서비스 이름에 대응하는 컨테이너 status 문자열 (예: dais-mlflow → 'Exited (137) ...')."""
+    for c in containers:
+        cn = c.get("name", "")
+        if cn == name or cn.endswith("-" + name):
+            return c.get("status")
+    return None
+
+
+def _gpu_summary(gpu: Any) -> str:
+    if isinstance(gpu, dict):
+        return f"GPU: 조회 불가 ({gpu.get('error', 'n/a')})"
+    if not gpu:
+        return "GPU: 없음"
+    parts = [
+        f"G{g['index']} util {g['util_pct']:.0f}% "
+        f"mem {g['mem_used_mb']:.0f}/{g['mem_total_mb']:.0f}MB {g['temp_c']:.0f}C"
+        for g in gpu
+    ]
+    return "GPU: " + " | ".join(parts)
+
+
 # ---------- 노드 (모두 읽기 전용) ----------
 def collect(state: AgentState) -> AgentState:
-    """전 대상 서비스 상태 수집 (LLM 미사용)."""
+    """서비스(HTTP+TCP)·컨테이너·GPU 상태 수집 (LLM 미사용)."""
     services = tools.check_services(state.get("targets"))
+    containers = tools.container_status()
+    gpu = tools.gpu_status()
     unhealthy = [s for s in services if s["status"] in ("down", "degraded")]
-    return {"services": services, "unhealthy": unhealthy}
+    return {"services": services, "containers": containers, "gpu": gpu, "unhealthy": unhealthy}
 
 
 def triage(state: AgentState) -> Literal["diagnose", "done"]:
@@ -87,14 +113,18 @@ def triage(state: AgentState) -> Literal["diagnose", "done"]:
 
 def hypothesize(state: AgentState) -> AgentState:
     """LLM: 비정상 서비스의 원인 후보 + 사람이 취할 복구 방법(제안) 생성."""
-    evidence = "\n".join(
-        f"- {s['name']}: {s['status']} ({s['evidence']})" for s in state.get("unhealthy", [])
-    )
+    containers = state.get("containers", [])
+    lines = []
+    for s in state.get("unhealthy", []):
+        cl = _container_for(s["name"], containers)
+        extra = f" / 컨테이너: {cl}" if cl else ""
+        lines.append(f"- {s['name']}: {s['status']} ({s['evidence']}){extra}")
+    evidence = "\n".join(lines)
     prompt = (
         "너는 MLOps 인프라 SRE 에이전트다. 아래 비정상 서비스의 가능한 근본 원인을 "
         "최대 4개 추정하라. 후보군: OOM(메모리부족), 포트충돌, 디스크부족, 의존 서비스 다운, "
         "설정/인증 오류, 네트워크 단절.\n"
-        f"[비정상 서비스]\n{evidence}\n\n"
+        f"[비정상 서비스]\n{evidence}\n[{_gpu_summary(state.get('gpu'))}]\n\n"
         "반드시 JSON 배열로만 답하라. 각 원소 키: "
         '{"service": str, "root_cause": str, "severity": "low|medium|high", '
         '"check": "검증 방법(로그/디스크 등)", '
@@ -105,23 +135,31 @@ def hypothesize(state: AgentState) -> AgentState:
 
 
 def verify(state: AgentState) -> AgentState:
-    """가설을 로그·디스크로 검증해 신뢰도·근거 보강 → incidents 확정 (조회만)."""
+    """가설을 로그·디스크·컨테이너 상태로 검증해 신뢰도·근거 보강 → incidents (조회만)."""
     disk = tools.disk_usage()
+    disk_full = isinstance(disk, dict) and disk.get("used_pct", 0) >= 90
+    containers = state.get("containers", [])
     incidents: list[dict[str, Any]] = []
     for h in state.get("hypotheses", []):
         svc = h.get("service", "")
         rc = (h.get("root_cause") or "").lower()
         logs = tools.recent_logs(svc) if svc else ""
+        cstatus = _container_for(svc, containers) or ""
         confidence, ev = 0.5, []
-        if ("oom" in rc or "memory" in rc) and any(
-            k in logs.lower() for k in ("oom", "out of memory", "killed")
-        ):
-            confidence = 0.85
-            ev.append("로그에서 OOM/killed 흔적")
-        disk_full = isinstance(disk, dict) and disk.get("used_pct", 0) >= 90
+        if any(k in rc for k in ("oom", "memory")):
+            if any(k in logs.lower() for k in ("oom", "out of memory", "killed")):
+                confidence = 0.85
+                ev.append("로그에서 OOM/killed 흔적")
+            if "(137)" in cstatus or "OOMKilled" in cstatus:
+                confidence = 0.9
+                ev.append(f"컨테이너 비정상 종료: {cstatus}")
         if ("디스크" in rc or "disk" in rc) and disk_full:
             confidence = 0.85
             ev.append(f"디스크 사용 {disk.get('used_pct')}%")
+        if "다운" in rc or "down" in rc:
+            if cstatus and "Up" not in cstatus:
+                confidence = max(confidence, 0.7)
+                ev.append(f"컨테이너 상태: {cstatus}")
         incidents.append({
             "service": svc,
             "root_cause": h.get("root_cause", "unknown"),
@@ -142,7 +180,6 @@ def summarize_notify(state: AgentState) -> AgentState:
     if overall == "healthy":
         summary = f"[Infra] 전체 정상 — {len(services)}개 서비스 healthy."
     elif not incidents:
-        # 이상은 있으나 진단(incidents)을 못 만든 경우 (예: LLM 다운)
         bad = ", ".join(
             f"{s['name']}({s['status']})"
             for s in services
