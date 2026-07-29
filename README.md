@@ -65,7 +65,7 @@
 
 - Docker 24+ / docker compose v2 plugin
 - NVIDIA Container Toolkit (GPU 학습/추론에 필요)
-- 외부 LLM endpoint — OpenAI 호환 (예: 8번 서버 vLLM)
+- 외부 LLM endpoint — OpenAI 호환 (vLLM). 서빙 정의는 [docker/llm-qwen/](docker/llm-qwen/)
 - Python 3.11+ (Agent 개발 / 호스트 venv 작업 시)
 - GNU Make
 

@@ -10,7 +10,8 @@
 | 항목 | 값 |
 |---|---|
 | 프레임워크 | LangChain + LangGraph |
-| LLM | 8번 서버 (`LLM_BASE_URL`) — OpenAI 호환 endpoint |
+| LLM | 외부 GPU 서버의 OpenAI 호환 endpoint (`LLM_BASE_URL`), 모델 alias `dais-llm` |
+| Tool calling | 지원 — `get_llm().bind_tools([...])`. vLLM `--tool-call-parser qwen3_coder` 실측 검증 |
 | Tracing | LangSmith (`LANGCHAIN_*` 환경변수, 자동 활성화) |
 | LLM 클라이언트 | `agents.common.get_llm()` factory (Phase 4 완료) |
 | Tracing 헬퍼 | `agents.common.configure_tracing()` |
