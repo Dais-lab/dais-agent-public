@@ -1,6 +1,7 @@
-"""8번 서버 LLM 연결 검증.
+"""외부 GPU 서버 LLM 연결 검증.
 
 본 테스트는 외부 시스템(LLM endpoint)에 의존한다. integration 마커가 붙어 있다.
+tool-call 파서까지 검증하려면 test_llm_toolcall.py 를 함께 돌린다.
 실행:
     pytest tests/integration/test_llm_connectivity.py -v -s
 """
