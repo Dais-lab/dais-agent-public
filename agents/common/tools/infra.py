@@ -43,8 +43,11 @@ SERVICES: dict[str, dict[str, Any]] = {
         "health": _svc_url("mlflow", "http://mlflow:5000/health"),
         "containers": ["mlflow"],
     },
+    # airflow 는 /health 가 200 이어도 본문에 scheduler·metadatabase 상태를 따로 알려준다.
+    # scheduler 는 백그라운드 워커라 자체 HTTP/TCP 점검 수단이 없으므로 이 본문이 유일한 근거.
     "airflow": {
         "health": _svc_url("airflow", "http://airflow-webserver:8080/health"),
+        "parse": "airflow",
         "containers": ["airflow-webserver", "airflow-scheduler"],
     },
     "minio": {
@@ -89,18 +92,55 @@ def _docker(args: list[str], timeout: int = 20) -> tuple[int, str]:
         return 1, f"{type(exc).__name__}: {exc}"
 
 
+# 헬스 응답 본문을 읽을 때의 상한 (본문 파싱이 필요한 서비스에만 적용)
+MAX_HEALTH_BODY = 8192
+
+
+def _parse_airflow_health(body: bytes) -> tuple[str | None, str]:
+    """airflow /health 본문에서 하위 컴포넌트 상태를 뽑는다.
+
+    airflow 는 scheduler 가 죽어도 HTTP 200 을 반환하므로 상태코드만으로는 알 수 없다.
+    status 가 null 인 컴포넌트(triggerer 등)는 미구성으로 보고 장애로 취급하지 않는다.
+    반환: (상태 덮어쓸 값 or None, 근거 문자열)
+    """
+    try:
+        data = json.loads(body.decode("utf-8"))
+    except Exception:  # noqa: BLE001
+        return None, ""
+    if not isinstance(data, dict):
+        return None, ""
+    comps = {k: v.get("status") for k, v in data.items() if isinstance(v, dict)}
+    bad = {k: v for k, v in comps.items() if v not in (None, "healthy")}
+    if bad:
+        return "degraded", ", ".join(f"{k}={v}" for k, v in sorted(bad.items()))
+    live = [k for k, v in comps.items() if v == "healthy"]
+    return None, ", ".join(f"{k}=healthy" for k in sorted(live))
+
+
 # ── 상태 점검 ────────────────────────────────────────────────
-def http_health(name: str, url: str, timeout: float = DEFAULT_TIMEOUT) -> dict[str, Any]:
-    """단일 서비스 HTTP 헬스체크. status ∈ {up, degraded, down}."""
+def http_health(name: str, url: str, timeout: float = DEFAULT_TIMEOUT,
+                parse: str | None = None) -> dict[str, Any]:
+    """단일 서비스 HTTP 헬스체크. status ∈ {up, degraded, down}.
+
+    parse 가 지정된 서비스는 응답 본문까지 해석해 하위 컴포넌트 상태를 반영한다.
+    """
     start = time.monotonic()
     try:
         req = urllib.request.Request(url, method="GET")
         with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
             code = resp.getcode()
+            body = resp.read(MAX_HEALTH_BODY) if parse else b""
         latency = int((time.monotonic() - start) * 1000)
         status = "up" if 200 <= code < 400 else "degraded"
+        evidence = f"HTTP {code}"
+        if parse == "airflow":
+            override, detail = _parse_airflow_health(body)
+            if detail:
+                evidence += f", {detail}"
+            if override and status == "up":
+                status = override
         return {"name": name, "status": status, "latency_ms": latency,
-                "evidence": f"HTTP {code}"}
+                "evidence": evidence}
     except Exception as exc:  # noqa: BLE001
         latency = int((time.monotonic() - start) * 1000)
         return {"name": name, "status": "down", "latency_ms": latency,
@@ -129,7 +169,7 @@ def check_services(targets: list[str] | None = None) -> list[dict[str, Any]]:
     for n in names:
         spec = SERVICES.get(n, {})
         if "health" in spec:
-            out.append(http_health(n, spec["health"]))
+            out.append(http_health(n, spec["health"], parse=spec.get("parse")))
         elif "tcp" in spec:
             host, port = spec["tcp"]
             out.append(tcp_check(n, host, port))
