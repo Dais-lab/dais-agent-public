@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -40,6 +41,7 @@ class AgentState(TypedDict, total=False):
     gpu: Any
     unhealthy: list[dict[str, Any]]
     unresolved: list[dict[str, Any]]
+    evidence_pool: list[str]
     hypotheses: list[dict[str, Any]]
     llm_error: str
     incidents: list[dict[str, Any]]
@@ -99,6 +101,23 @@ def _is_failed(c: dict[str, Any]) -> bool:
     """비정상 종료로 볼 컨테이너인가. Exited (0) 은 정상 종료(init 등)라 제외."""
     st = c.get("status") or ""
     return not st.startswith("Up") and "Exited (0)" not in st
+
+
+def _tokens(text: str) -> set[str]:
+    """비교용 토큰 집합. 너무 짧은 조각은 우연히 겹치므로 버린다."""
+    return {t for t in re.split(r"[^0-9A-Za-z가-힣_.:-]+", (text or "").lower()) if len(t) > 2}
+
+
+def _cited_ok(cited: str, pool: list[str]) -> bool:
+    """LLM 이 인용한 문장이 실제로 제시한 사실에서 온 것인지 판정.
+
+    표현을 바꿔 쓰는 경우가 많아 완전 일치는 요구하지 않고, 인용문의 토큰 중
+    절반 이상이 제시된 한 줄과 겹치는지로 본다. 통째로 지어낸 인용을 걸러내는 용도.
+    """
+    c = _tokens(cited)
+    if not c:
+        return False
+    return any(len(c & _tokens(p)) / len(c) >= 0.5 for p in pool)
 
 
 def _gpu_summary(gpu: Any) -> str:
@@ -206,27 +225,42 @@ def hypothesize(state: AgentState) -> AgentState:
         extra = f" / 컨테이너: {cl}" if cl else ""
         lines.append(f"- {s['name']}: {s['status']} ({s['evidence']}){extra}")
     evidence = "\n".join(lines)
+    gpu_line = _gpu_summary(state.get("gpu"))
+    pool = lines + [gpu_line]
+    # 원인 후보군을 나열하지 않는다. 흔한 원인은 rule_diagnose 가 이미 확정했으므로,
+    # 여기까지 온 건 목록 밖 원인일 가능성이 높다. 목록으로 가두면 오히려 오진이 된다.
+    # 결론보다 근거·추론을 먼저 쓰게 해 사후 검증(인용 대조)이 가능하도록 키 순서를 고정한다.
     prompt = (
-        "너는 MLOps 인프라 SRE 에이전트다. 아래 비정상 서비스의 가능한 근본 원인을 "
-        "최대 4개 추정하라. 후보군: OOM(메모리부족), 포트충돌, 디스크부족, 의존 서비스 다운, "
-        "설정/인증 오류, 네트워크 단절.\n"
-        f"[비정상 서비스]\n{evidence}\n[{_gpu_summary(state.get('gpu'))}]\n\n"
-        "반드시 JSON 배열로만 답하라. 각 원소 키: "
-        '{"service": str, "root_cause": str, "severity": "low|medium|high", '
-        '"check": "검증 방법(로그/디스크 등)", '
-        '"suggested_action": "사람이 취할 복구 방법(예: docker restart dais-mlflow)"}'
+        "너는 MLOps 인프라 SRE 에이전트다. 아래는 자동 점검이 관측한 사실이다.\n"
+        f"[관측된 사실]\n{evidence}\n[{gpu_line}]\n\n"
+        "각 서비스의 근본 원인을 추정하라. 규칙:\n"
+        "- 위에 제시된 사실만 근거로 삼는다. 제시되지 않은 정보를 지어내지 않는다.\n"
+        '- 근거가 부족하면 root_cause 를 "unknown" 으로 두고 '
+        "check 에 필요한 확인 방법을 적는다.\n"
+        "- reasoning 은 2~3문장으로 짧게 쓴다.\n\n"
+        "JSON 배열로만 답하라. 각 원소는 아래 키를 이 순서대로 가진다:\n"
+        '{"service": str, '
+        '"observed": [근거로 삼은 사실을 위 목록에서 그대로 인용한 문자열 배열], '
+        '"reasoning": "관측에서 원인으로 이어지는 추론", '
+        '"root_cause": str 또는 "unknown", '
+        '"severity": "low|medium|high", '
+        '"check": "추가 확인 방법", '
+        '"suggested_action": "사람이 취할 복구 방법"}'
     )
     try:
         hyps = _llm_json(prompt)
     except Exception as exc:  # noqa: BLE001  LLM 이 죽어도 점검 결과 보고는 나가야 한다
-        return {"hypotheses": [], "llm_error": f"{type(exc).__name__}: {exc}"}
-    return {"hypotheses": hyps if isinstance(hyps, list) else []}
+        return {"hypotheses": [], "evidence_pool": pool,
+                "llm_error": f"{type(exc).__name__}: {exc}"}
+    return {"hypotheses": hyps if isinstance(hyps, list) else [],
+            "evidence_pool": pool}
 
 
 def verify(state: AgentState) -> AgentState:
     """가설을 로그·디스크·컨테이너 상태로 검증해 신뢰도·근거 보강 → incidents (조회만)."""
     disk = tools.disk_usage()
     disk_full = isinstance(disk, dict) and disk.get("used_pct", 0) >= 90
+    pool = state.get("evidence_pool", [])
     containers = state.get("containers", [])
     # rule_diagnose 가 확정한 incident 를 보존하고 LLM 추정분을 덧붙인다
     incidents: list[dict[str, Any]] = list(state.get("incidents", []))
@@ -253,9 +287,22 @@ def verify(state: AgentState) -> AgentState:
             if bad:
                 confidence = max(confidence, 0.7)
                 ev.append(f"컨테이너 상태: {_fmt_containers(bad)}")
+        # LLM 이 인용한 근거가 실제로 제시된 사실인지 대조 (환각 탐지)
+        cited = [c for c in (h.get("observed") or []) if isinstance(c, str)]
+        if cited:
+            bogus = [c for c in cited if not _cited_ok(c, pool)]
+            if bogus:
+                confidence = min(confidence, 0.3)
+                ev.append(f"제시되지 않은 근거를 인용: {'; '.join(bogus)[:120]}")
+            else:
+                ev.append(f"인용 근거 확인 {len(cited)}건")
+        else:
+            ev.append("근거 인용 없음(검증 불가)")
+
         incidents.append({
             "service": svc,
             "root_cause": h.get("root_cause", "unknown"),
+            "reasoning": h.get("reasoning", ""),
             "severity": h.get("severity", "medium"),
             "suggested_action": h.get("suggested_action", ""),
             "confidence": confidence,
