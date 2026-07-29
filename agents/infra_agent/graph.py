@@ -41,6 +41,7 @@ class AgentState(TypedDict, total=False):
     unhealthy: list[dict[str, Any]]
     unresolved: list[dict[str, Any]]
     hypotheses: list[dict[str, Any]]
+    llm_error: str
     incidents: list[dict[str, Any]]
     # --- 출력 (InfraReport) ---
     overall: Literal["healthy", "degraded", "down"]
@@ -215,7 +216,10 @@ def hypothesize(state: AgentState) -> AgentState:
         '"check": "검증 방법(로그/디스크 등)", '
         '"suggested_action": "사람이 취할 복구 방법(예: docker restart dais-mlflow)"}'
     )
-    hyps = _llm_json(prompt)
+    try:
+        hyps = _llm_json(prompt)
+    except Exception as exc:  # noqa: BLE001  LLM 이 죽어도 점검 결과 보고는 나가야 한다
+        return {"hypotheses": [], "llm_error": f"{type(exc).__name__}: {exc}"}
     return {"hypotheses": hyps if isinstance(hyps, list) else []}
 
 
@@ -286,6 +290,12 @@ def summarize_notify(state: AgentState) -> AgentState:
             if propose and i.get("suggested_action"):
                 base += f" → 권장 조치: {i['suggested_action']}"
             lines.append(base)
+        stuck = [s["name"] for s in state.get("unresolved", [])]
+        if stuck and state.get("llm_error"):
+            lines.append(
+                f"- 원인 미확정 {len(stuck)}건({', '.join(stuck)}): "
+                f"LLM 진단 실패로 수동 확인 필요"
+            )
         body = "\n".join(lines)
         prompt = (
             "다음 인프라 점검 결과를 운영자용 한국어 한 단락으로 요약하라. "
