@@ -30,19 +30,49 @@ def _tcp_target(name: str, default_host: str, default_port: int) -> tuple[str, i
     return host, port
 
 
-# HTTP health 엔드포인트 (dais_network 컨테이너 기준 기본값)
-SERVICE_HEALTH: dict[str, str] = {
-    "ml-inference": _svc_url("ml-inference", "http://ml-inference:8004/health"),
-    "mlflow": _svc_url("mlflow", "http://mlflow:5000/health"),
-    "airflow": _svc_url("airflow", "http://airflow-webserver:8080/health"),
-    "minio": _svc_url("minio", "http://minio:9000/minio/health/live"),
-    "prometheus": _svc_url("prometheus", "http://prometheus:9090/-/healthy"),
+# ── 감시 대상 서비스 정의 ────────────────────────────────────
+# 서비스 1개 = 점검 방법(health URL 또는 tcp) + 그 서비스를 구성하는 compose 서비스 목록.
+# 한 서비스가 여러 컨테이너로 구성될 수 있다(예: airflow = webserver + scheduler).
+# 컨테이너 매칭은 이름 규칙을 추측하지 않고 이 선언과 compose 라벨로만 한다.
+SERVICES: dict[str, dict[str, Any]] = {
+    "ml-inference": {
+        "health": _svc_url("ml-inference", "http://ml-inference:8004/health"),
+        "containers": ["ml-inference"],
+    },
+    "mlflow": {
+        "health": _svc_url("mlflow", "http://mlflow:5000/health"),
+        "containers": ["mlflow"],
+    },
+    "airflow": {
+        "health": _svc_url("airflow", "http://airflow-webserver:8080/health"),
+        "containers": ["airflow-webserver", "airflow-scheduler"],
+    },
+    "minio": {
+        "health": _svc_url("minio", "http://minio:9000/minio/health/live"),
+        "containers": ["minio"],
+    },
+    "prometheus": {
+        "health": _svc_url("prometheus", "http://prometheus:9090/-/healthy"),
+        "containers": ["prometheus"],
+    },
+    "postgres": {
+        "tcp": _tcp_target("postgres", "postgres", 5432),
+        "containers": ["postgres"],
+    },
 }
 
-# HTTP 가 아닌 서비스는 TCP 포트로 점검 (예: PostgreSQL)
-TCP_SERVICES: dict[str, tuple[str, int]] = {
-    "postgres": _tcp_target("postgres", "postgres", 5432),
+# 하위 호환용 파생 뷰 (기존 참조가 그대로 동작하도록)
+SERVICE_HEALTH: dict[str, str] = {
+    n: s["health"] for n, s in SERVICES.items() if "health" in s
 }
+TCP_SERVICES: dict[str, tuple[str, int]] = {
+    n: s["tcp"] for n, s in SERVICES.items() if "tcp" in s
+}
+
+
+def service_containers(name: str) -> list[str]:
+    """서비스를 구성하는 compose 서비스 이름 목록 (선언 기반, 추측 없음)."""
+    return list(SERVICES.get(name, {}).get("containers", []))
 
 DEFAULT_TIMEOUT = float(os.getenv("INFRA_HTTP_TIMEOUT", "5"))
 COMPOSE_PROJECT = os.getenv("INFRA_COMPOSE_PROJECT", "dais")
@@ -94,13 +124,14 @@ def tcp_check(name: str, host: str, port: int, timeout: float = DEFAULT_TIMEOUT)
 
 def check_services(targets: list[str] | None = None) -> list[dict[str, Any]]:
     """대상 서비스 상태 리스트(HTTP + TCP). targets=None 이면 전체."""
-    names = targets or (list(SERVICE_HEALTH) + list(TCP_SERVICES))
+    names = targets or list(SERVICES)
     out: list[dict[str, Any]] = []
     for n in names:
-        if n in SERVICE_HEALTH:
-            out.append(http_health(n, SERVICE_HEALTH[n]))
-        elif n in TCP_SERVICES:
-            host, port = TCP_SERVICES[n]
+        spec = SERVICES.get(n, {})
+        if "health" in spec:
+            out.append(http_health(n, spec["health"]))
+        elif "tcp" in spec:
+            host, port = spec["tcp"]
             out.append(tcp_check(n, host, port))
         else:
             out.append({"name": n, "status": "unknown", "latency_ms": 0,
@@ -110,15 +141,21 @@ def check_services(targets: list[str] | None = None) -> list[dict[str, Any]]:
 
 # ── 컨테이너 / 리소스 ────────────────────────────────────────
 def container_status(prefix: str | None = None) -> list[dict[str, Any]]:
-    """compose 프로젝트 컨테이너의 상태(state/status 문자열) 목록. exit code·재시작 흔적 포함."""
+    """compose 프로젝트 컨테이너 상태 목록. exit code·재시작 흔적 포함.
+
+    compose 라벨(com.docker.compose.service)을 함께 수집해, 서비스 매칭을 이름
+    문자열 추측이 아니라 docker 가 알려주는 사실로 할 수 있게 한다.
+    """
     prefix = prefix or COMPOSE_PROJECT
-    fmt = "{{.Names}}\t{{.State}}\t{{.Status}}"
+    fmt = ('{{.Names}}\t{{.State}}\t{{.Status}}\t'
+           '{{.Label "com.docker.compose.service"}}')
     _, out = _docker(["ps", "-a", "--filter", f"name={prefix}-", "--format", fmt])
     rows: list[dict[str, Any]] = []
     for line in out.splitlines():
         parts = line.split("\t")
         if len(parts) >= 3:
-            rows.append({"name": parts[0], "state": parts[1], "status": parts[2]})
+            rows.append({"name": parts[0], "state": parts[1], "status": parts[2],
+                         "service": parts[3] if len(parts) > 3 else ""})
     return rows
 
 

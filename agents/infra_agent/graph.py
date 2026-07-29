@@ -74,13 +74,29 @@ def _overall(incidents: list, services: list) -> str:
     return "healthy"
 
 
-def _container_for(name: str, containers: list[dict[str, Any]]) -> str | None:
-    """서비스 이름에 대응하는 컨테이너 status 문자열 (예: dais-mlflow → 'Exited (137) ...')."""
-    for c in containers:
-        cn = c.get("name", "")
-        if cn == name or cn.endswith("-" + name):
-            return c.get("status")
-    return None
+def _containers_for(name: str, containers: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """서비스를 구성하는 컨테이너 목록 (1:N 허용).
+
+    이름 규칙을 추측하지 않는다. infra.SERVICES 에 선언된 compose 서비스 목록과
+    docker 가 붙인 compose 라벨을 비교한다(라벨이 없으면 관례적 컨테이너명으로 보완).
+    """
+    want = set(tools.service_containers(name))
+    if not want:
+        return []
+    fallback = {f"{tools.COMPOSE_PROJECT}-{s}" for s in want}
+    return [c for c in containers
+            if c.get("service") in want or c.get("name") in fallback]
+
+
+def _fmt_containers(cs: list[dict[str, Any]]) -> str:
+    """컨테이너 목록을 'name=status' 한 줄로. 비어 있으면 빈 문자열."""
+    return ", ".join(f"{c.get('name')}={c.get('status')}" for c in cs)
+
+
+def _is_failed(c: dict[str, Any]) -> bool:
+    """비정상 종료로 볼 컨테이너인가. Exited (0) 은 정상 종료(init 등)라 제외."""
+    st = c.get("status") or ""
+    return not st.startswith("Up") and "Exited (0)" not in st
 
 
 def _gpu_summary(gpu: Any) -> str:
@@ -116,7 +132,7 @@ def hypothesize(state: AgentState) -> AgentState:
     containers = state.get("containers", [])
     lines = []
     for s in state.get("unhealthy", []):
-        cl = _container_for(s["name"], containers)
+        cl = _fmt_containers(_containers_for(s["name"], containers))
         extra = f" / 컨테이너: {cl}" if cl else ""
         lines.append(f"- {s['name']}: {s['status']} ({s['evidence']}){extra}")
     evidence = "\n".join(lines)
@@ -144,22 +160,25 @@ def verify(state: AgentState) -> AgentState:
         svc = h.get("service", "")
         rc = (h.get("root_cause") or "").lower()
         logs = tools.recent_logs(svc) if svc else ""
-        cstatus = _container_for(svc, containers) or ""
+        cs = _containers_for(svc, containers) if svc else []
         confidence, ev = 0.5, []
         if any(k in rc for k in ("oom", "memory")):
             if any(k in logs.lower() for k in ("oom", "out of memory", "killed")):
                 confidence = 0.85
                 ev.append("로그에서 OOM/killed 흔적")
-            if "(137)" in cstatus or "OOMKilled" in cstatus:
+            oom = [c for c in cs
+                   if "(137)" in (c.get("status") or "") or "OOMKilled" in (c.get("status") or "")]
+            if oom:
                 confidence = 0.9
-                ev.append(f"컨테이너 비정상 종료: {cstatus}")
+                ev.append(f"컨테이너 비정상 종료: {_fmt_containers(oom)}")
         if ("디스크" in rc or "disk" in rc) and disk_full:
             confidence = 0.85
             ev.append(f"디스크 사용 {disk.get('used_pct')}%")
         if "다운" in rc or "down" in rc:
-            if cstatus and "Up" not in cstatus:
+            bad = [c for c in cs if _is_failed(c)]
+            if bad:
                 confidence = max(confidence, 0.7)
-                ev.append(f"컨테이너 상태: {cstatus}")
+                ev.append(f"컨테이너 상태: {_fmt_containers(bad)}")
         incidents.append({
             "service": svc,
             "root_cause": h.get("root_cause", "unknown"),
