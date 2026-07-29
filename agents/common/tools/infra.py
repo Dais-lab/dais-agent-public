@@ -40,16 +40,21 @@ SERVICES: dict[str, dict[str, Any]] = {
         "health": _svc_url("ml-inference", "http://ml-inference:8004/health"),
         "containers": ["ml-inference"],
     },
+    # depends_on 은 기동 순서가 아니라 '실행 중 실제로 의존하는' 서비스만 적는다.
+    # mlflow: backend-store=postgres, artifact-root=minio (컨테이너 실행 인자로 확인)
     "mlflow": {
         "health": _svc_url("mlflow", "http://mlflow:5000/health"),
         "containers": ["mlflow"],
+        "depends_on": ["postgres", "minio"],
     },
     # airflow 는 /health 가 200 이어도 본문에 scheduler·metadatabase 상태를 따로 알려준다.
     # scheduler 는 백그라운드 워커라 자체 HTTP/TCP 점검 수단이 없으므로 이 본문이 유일한 근거.
+    # airflow: metadatabase=postgres (/health 응답에 상태가 직접 보고됨)
     "airflow": {
         "health": _svc_url("airflow", "http://airflow-webserver:8080/health"),
         "parse": "airflow",
         "containers": ["airflow-webserver", "airflow-scheduler"],
+        "depends_on": ["postgres"],
     },
     "minio": {
         "health": _svc_url("minio", "http://minio:9000/minio/health/live"),
@@ -77,6 +82,11 @@ TCP_SERVICES: dict[str, tuple[str, int]] = {
 def service_containers(name: str) -> list[str]:
     """서비스를 구성하는 compose 서비스 이름 목록 (선언 기반, 추측 없음)."""
     return list(SERVICES.get(name, {}).get("containers", []))
+
+
+def service_depends_on(name: str) -> list[str]:
+    """서비스가 실행 중 의존하는 다른 감시 대상 목록 (선언 기반)."""
+    return list(SERVICES.get(name, {}).get("depends_on", []))
 
 DEFAULT_TIMEOUT = float(os.getenv("INFRA_HTTP_TIMEOUT", "5"))
 COMPOSE_PROJECT = os.getenv("INFRA_COMPOSE_PROJECT", "dais")

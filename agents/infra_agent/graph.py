@@ -39,6 +39,7 @@ class AgentState(TypedDict, total=False):
     containers: list[dict[str, Any]]
     gpu: Any
     unhealthy: list[dict[str, Any]]
+    unresolved: list[dict[str, Any]]
     hypotheses: list[dict[str, Any]]
     incidents: list[dict[str, Any]]
     # --- 출력 (InfraReport) ---
@@ -127,11 +128,79 @@ def triage(state: AgentState) -> Literal["diagnose", "done"]:
     return "diagnose" if state.get("unhealthy") else "done"
 
 
+def _incident(service: str, root_cause: str, severity: str, confidence: float,
+              action: str, evidence: str) -> dict[str, Any]:
+    """룰로 확정한 incident. source=rule 로 표시해 LLM 추정과 구분한다."""
+    return {"service": service, "root_cause": root_cause, "severity": severity,
+            "suggested_action": action, "confidence": confidence,
+            "evidence": evidence, "source": "rule"}
+
+
+def rule_diagnose(state: AgentState) -> AgentState:
+    """확정 가능한 원인을 룰로 먼저 처리하고, 단정할 수 없는 것만 unresolved 로 넘긴다.
+
+    확정: 의존 서비스 다운(2차 피해) · dns(대상 부재) · refused(프로세스 부재) ·
+          airflow 하위 컴포넌트 이상 · 디스크 부족
+    미확정: timeout(과부하/hang 등 원인 다수) · http_5xx · unknown → LLM 추정 대상
+    """
+    services = state.get("services", [])
+    down = {s["name"] for s in services if s["status"] == "down"}
+    containers = state.get("containers", [])
+    disk = tools.disk_usage()
+    disk_pct = disk.get("used_pct") if isinstance(disk, dict) else None
+
+    incidents: list[dict[str, Any]] = []
+    unresolved: list[dict[str, Any]] = []
+
+    if isinstance(disk_pct, (int, float)) and disk_pct >= 90:
+        incidents.append(_incident(
+            "host", f"디스크 사용률 {disk_pct}%", "high", 0.95,
+            "불필요한 이미지·로그 정리 또는 볼륨 확장",
+            f"disk_usage used_pct={disk_pct}, free_gb={disk.get('free_gb')}"))
+
+    for s in state.get("unhealthy", []):
+        name, failure = s["name"], s.get("failure", "")
+        sev = "high" if s["status"] == "down" else "medium"
+        bad_c = _fmt_containers([c for c in _containers_for(name, containers)
+                                 if _is_failed(c)])
+        base_ev = f"failure={failure or 'n/a'}; {s['evidence']}"
+        ev = f"{base_ev}; 컨테이너: {bad_c}" if bad_c else base_ev
+
+        dead_deps = [d for d in tools.service_depends_on(name) if d in down]
+        if dead_deps:
+            dep = ", ".join(dead_deps)
+            incidents.append(_incident(
+                name, f"의존 서비스 다운({dep})으로 인한 2차 장애", sev, 0.9,
+                f"{name} 이 아니라 {dep} 를 먼저 복구",
+                f"{ev}; 의존 대상 {dep} 가 down"))
+        elif failure == "dns":
+            incidents.append(_incident(
+                name, "대상 컨테이너 부재 (이름 해석 실패)", sev, 0.9,
+                "컨테이너가 기동돼 있는지 확인 후 재기동", ev))
+        elif failure == "refused":
+            incidents.append(_incident(
+                name, "포트를 수신하는 프로세스 없음 (종료 원인은 미확정)", sev, 0.9,
+                "컨테이너 상태·로그로 종료 원인 확인 후 재기동", ev))
+        elif failure == "component_unhealthy":
+            incidents.append(_incident(
+                name, "하위 컴포넌트 이상 (헬스 응답 본문 기준)", sev, 0.9,
+                "해당 컴포넌트 로그 확인", ev))
+        else:
+            unresolved.append(s)
+
+    return {"incidents": incidents, "unresolved": unresolved}
+
+
+def resolved(state: AgentState) -> Literal["llm", "done"]:
+    """룰로 못 가린 게 남아 있을 때만 LLM 추정으로 넘긴다."""
+    return "llm" if state.get("unresolved") else "done"
+
+
 def hypothesize(state: AgentState) -> AgentState:
     """LLM: 비정상 서비스의 원인 후보 + 사람이 취할 복구 방법(제안) 생성."""
     containers = state.get("containers", [])
     lines = []
-    for s in state.get("unhealthy", []):
+    for s in state.get("unresolved", []):
         cl = _fmt_containers(_containers_for(s["name"], containers))
         extra = f" / 컨테이너: {cl}" if cl else ""
         lines.append(f"- {s['name']}: {s['status']} ({s['evidence']}){extra}")
@@ -155,7 +224,8 @@ def verify(state: AgentState) -> AgentState:
     disk = tools.disk_usage()
     disk_full = isinstance(disk, dict) and disk.get("used_pct", 0) >= 90
     containers = state.get("containers", [])
-    incidents: list[dict[str, Any]] = []
+    # rule_diagnose 가 확정한 incident 를 보존하고 LLM 추정분을 덧붙인다
+    incidents: list[dict[str, Any]] = list(state.get("incidents", []))
     for h in state.get("hypotheses", []):
         svc = h.get("service", "")
         rc = (h.get("root_cause") or "").lower()
@@ -186,6 +256,7 @@ def verify(state: AgentState) -> AgentState:
             "suggested_action": h.get("suggested_action", ""),
             "confidence": confidence,
             "evidence": "; ".join(ev) or "추가 근거 없음(가설 단계)",
+            "source": "llm",
         })
     return {"incidents": incidents}
 
@@ -232,13 +303,17 @@ def summarize_notify(state: AgentState) -> AgentState:
 def build_graph():
     g = StateGraph(AgentState)
     g.add_node("collect", collect)
+    g.add_node("rule_diagnose", rule_diagnose)
     g.add_node("hypothesize", hypothesize)
     g.add_node("verify", verify)
     g.add_node("summarize_notify", summarize_notify)
 
     g.add_edge(START, "collect")
     g.add_conditional_edges(
-        "collect", triage, {"diagnose": "hypothesize", "done": "summarize_notify"}
+        "collect", triage, {"diagnose": "rule_diagnose", "done": "summarize_notify"}
+    )
+    g.add_conditional_edges(
+        "rule_diagnose", resolved, {"llm": "hypothesize", "done": "summarize_notify"}
     )
     g.add_edge("hypothesize", "verify")
     g.add_edge("verify", "summarize_notify")
