@@ -1,0 +1,132 @@
+# 별도 GPU 서버 (외부) 에서 동작하는 단독 LLM 컨테이너 — Qwen3.6 서빙 (운영).
+# Agent 들이 사용하는 OpenAI 호환 endpoint 를 제공한다.
+# 구 gemma 정의는 docker/llm/ 에 참고용으로만 남아 있다.
+#
+# 사용법: 같은 폴더의 deploy.sh 참고
+#   ./deploy.sh up       # 빌드 + 기동
+#   ./deploy.sh health   # 준비 확인
+#   ./deploy.sh verify   # tool-call 파서 실측 검증 (필수)
+#   ./deploy.sh down     # 종료
+#
+# 설정값은 저장소 루트 .env 의 LLM_* 섹션에서 주입한다 (deploy.sh 가 --env-file 로 전달).
+
+name: dais-llm
+
+services:
+  llm:
+    build:
+      context: .
+      args:
+        VLLM_IMAGE: ${VLLM_IMAGE:-vllm/vllm-openai:v0.26.0}
+    container_name: dais-llm
+    restart: unless-stopped
+
+    ports:
+      # LLM 은 dais_network 스택과 다른 호스트(GPU 서버)에서 동작하므로
+      # docs/PORTS.md 의 포트 표와는 별개 공간이다.
+      # LLM_BIND_ADDR: 0.0.0.0=전체 / <내부망IP>=내부망 한정 / 127.0.0.1=SSH 터널 전용
+      - "${LLM_BIND_ADDR:-0.0.0.0}:${LLM_HOST_PORT:-8000}:8000"
+
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+      HF_HOME: /root/.cache/huggingface
+
+    volumes:
+      # named volume 이 아니라 호스트 bind mount 를 쓴다.
+      # named volume 은 호스트에 이미 받아둔 캐시를 재사용하지 못해 매번 다시 받는다.
+      - ${HF_CACHE_DIR:?set HF_CACHE_DIR in the repo-root .env, e.g. /home/<user>/.cache/huggingface}:/root/.cache/huggingface
+    ipc: host
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 900s      # 모델 다운로드(37.5GB) + 로드 시간 고려
+
+    command:
+      # 공식 FP8 체크포인트 (Qwen 팀 배포, fine-grained fp8 block=128, Apache 2.0, 37.5GB).
+      # bf16 원본은 ~70GB 라 96GB GPU 에서 KV 캐시 여유가 거의 없다.
+      # Blackwell 이상은 FP8 하드웨어 가속이라 bf16 보다 오히려 빠르다.
+      - --model
+      - Qwen/Qwen3.6-35B-A3B-FP8
+
+      # 모델 중립 alias. 클라이언트(.env 의 LLM_MODEL)는 이 이름만 알면 되고,
+      # 이후 서빙 모델을 교체해도 클라이언트를 수정할 필요가 없다.
+      - --served-model-name
+      - dais-llm
+      - qwen3.6-35b
+      - Qwen/Qwen3.6-35B-A3B-FP8
+
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+
+      # ⚠️ 이 모델의 native 컨텍스트는 262,144 다.
+      #    모델 카드의 예시 명령을 그대로 쓰면 KV 캐시가 감당하지 못하므로 반드시 제한한다.
+      #    낮출수록 같은 KV 로 동시 처리량이 늘어난다 — Agent 프롬프트는 16k 로 충분.
+      - --max-model-len
+      - "${LLM_MAX_MODEL_LEN:-16384}"
+
+      # 선점량 = GPU 총량 × 이 비율. 그 안에서 가중치(35,762 MiB)와 활성화/CUDA graph/
+      # 하이브리드 상태(~2,700 MiB)는 고정이고, 남는 만큼이 KV 캐시가 된다.
+      # 97,887 MiB GPU 실측: 0.55 → 55,480 MiB(KV 15.4GB) / 0.45 → ~45,700 MiB(KV 5.6GB)
+      #                      0.42 → ~42,800 MiB(KV 2.6GB) = 하한선, 이 아래는 기동 실패.
+      # ⚠️ vLLM 은 기동 시 이 비율만큼 VRAM 을 선점하고 컨테이너 수명 내내 유지한다.
+      #    GPU 를 다른 작업과 공유한다면 그만큼 상대가 쓸 수 없다.
+      #    변경 시 .env 의 LLM_REQUIRED_FREE_MIB 도 같이 조정할 것.
+      - --gpu-memory-utilization
+      - "${LLM_GPU_MEM_UTIL:-0.45}"
+
+      # 하이브리드 어텐션(GDN) 대응 — 기본 max_num_seqs=1024 는
+      # Mamba cache block 을 초과해 기동에 실패한다. 상태 캐시가 이 값에 비례해
+      # 선점되므로, 동시 요청이 적은 내부 Agent 용도에서는 낮게 잡는 편이 이득이다.
+      - --max-num-seqs
+      - "${LLM_MAX_NUM_SEQS:-128}"
+      - --max-num-batched-tokens
+      - "8192"
+
+      # ── 에이전트 tool calling ───────────────────────────
+      # 파서 이름이 출처마다 다르다 (HF 모델 카드: qwen3_coder / vLLM recipes: qwen3_xml).
+      # 실측 결과 qwen3_coder 로 tool_calls 수신 및 인자 파싱 정상 확인.
+      # 변경 시 './deploy.sh verify' 로 재검증할 것 — 틀리면 일반 응답은 정상인데
+      # tool_calls 만 비어서 Agent 가 조용히 깨진다.
+      - --enable-auto-tool-choice
+      - --tool-call-parser
+      - "${LLM_TOOL_PARSER:-qwen3_coder}"
+      - --reasoning-parser
+      - qwen3
+
+      # ── thinking 기본값 ────────────────────────────────
+      # 이 모델은 기본적으로 사고 과정을 먼저 생성한다. 그 결과:
+      #   - max_tokens 가 작으면 사고에 예산을 다 써 content 가 빈 채로 잘린다
+      #     (실측: max_tokens=128 → finish=length, content 없음)
+      #   - 동일 tool call 에 299 토큰 vs 26 토큰 (11배 차이)
+      # 공용 endpoint 이므로 기본은 off 로 두고, 필요한 호출에서만 켠다.
+      #   요청 단위 활성화: {"chat_template_kwargs": {"enable_thinking": true}}
+      #   LangChain:       model_kwargs={"chat_template_kwargs": {"enable_thinking": True}}
+      - --default-chat-template-kwargs
+      - '{"enable_thinking": ${LLM_ENABLE_THINKING:-false}}'
+
+      # 이 모델은 vision/video 입력을 지원한다. 텍스트 전용으로 쓰면
+      # 멀티모달 프로파일링이 선점하는 메모리를 KV 캐시로 회수할 수 있다.
+      - --limit-mm-per-prompt
+      - '{"image":0,"video":0}'
+
+      # ── 인증 (선택) ────────────────────────────────────
+      # endpoint 를 사내망 밖으로 노출한다면 활성화하고 .env 의 LLM_API_KEY 를 채운다.
+      # - --api-key
+      # - ${LLM_API_KEY}
+
+      # ── 기동 실패 시 시도 ──────────────────────────────
+      # Mamba cache 관련 에러 → --max-cudagraph-capture-size 256
+      # KV 를 더 확보 → --kv-cache-dtype fp8

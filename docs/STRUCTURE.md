@@ -38,11 +38,15 @@ dais_agent/
 │   ├── grafana/provisioning/          # 데이터소스 / 대시보드 자동 등록
 │   ├── agent/Dockerfile               # 3개 Agent 공용 (data / infra / correction)
 │   ├── model/Dockerfile               # ml-train / ml-inference GPU 이미지
-│   ├── llm/                           # 외부 서버용 vLLM (Gemma) 컨테이너
+│   ├── llm/                           # 외부 서버용 vLLM (Gemma) — 구 정의, 참고용
 │   │   ├── Dockerfile
 │   │   ├── docker-compose.yml
 │   │   └── deploy.sh
-│   └── llm-qwen/                      # 외부 서버용 vLLM (Qwen) 컨테이너
+│   └── llm-qwen/                      # 외부 서버용 vLLM (Qwen3.6) — ★ 운영 endpoint
+│       ├── Dockerfile
+│       ├── docker-compose.yml
+│       ├── deploy.sh                  # local / 원격(docker context) 양쪽 지원
+│       └── verify_toolcall.py         # tool-call 파서 실측 검증 (필수 실행)
 │
 ├── model/                             # DINOv3 anomaly 학습 / 추론 (GPU)
 │   ├── train/                         # train.py + register_existing.py (MLflow 로깅)
