@@ -111,10 +111,18 @@ EOF
     }
 }
 
-# GPU 여유 조회 — local 이면 호스트 nvidia-smi, 원격이면 대상 daemon 위 컨테이너로 조회한다.
+# GPU 여유 조회 — local 이면 호스트 nvidia-smi, 원격이면 대상 daemon 을 거친다.
+# 원격에서는 두 경로를 순서대로 시도한다:
+#   ① 실행 중인 컨테이너에 exec  — nvidia-smi 는 NVIDIA 런타임이 주입해주므로 항상 있다.
+#   ② 베이스 이미지로 일회용 run — 컨테이너가 내려간 상태(up 직전 check_vram)에서 필요.
+# ①을 먼저 두는 이유: compose 가 빌드한 이미지는 dais-llm-llm 이고 베이스 이미지는
+# BuildKit 빌드 시 image store 에 남지 않을 수 있어 ②가 조용히 실패한다(실측).
 gpu_query() {   # $1: --query-gpu 값
     if [ "$CONTEXT" = "local" ] && command -v nvidia-smi >/dev/null 2>&1; then
         nvidia-smi --query-gpu="$1" --format=csv,noheader,nounits 2>/dev/null || true
+    elif dkr ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
+        dkr exec "$CONTAINER" nvidia-smi \
+            --query-gpu="$1" --format=csv,noheader,nounits 2>/dev/null || true
     elif dkr image inspect "$IMAGE_REF" >/dev/null 2>&1; then
         dkr run --rm --gpus all --entrypoint nvidia-smi "$IMAGE_REF" \
             --query-gpu="$1" --format=csv,noheader,nounits 2>/dev/null || true
@@ -125,7 +133,9 @@ check_vram() {
     local free
     free="$(gpu_query memory.free | head -1 | tr -dc '0-9')"
     if [ -z "$free" ]; then
-        echo "⚠️  GPU 여유를 확인하지 못했습니다 (이미지 미빌드 또는 nvidia-smi 없음). 점검을 건너뜁니다."
+        echo "⚠️  GPU 여유를 확인하지 못했습니다 — 점검을 건너뜁니다."
+        echo "   컨테이너가 내려간 상태라면 베이스 이미지가 대상 daemon 에 있어야 합니다:"
+        echo "     docker --context ${CONTEXT} pull ${IMAGE_REF}"
         return 0
     fi
     echo "▶ GPU 여유: ${free} MiB (필요 ≈ ${REQUIRED_FREE_MIB} MiB)"
@@ -222,7 +232,14 @@ EOF
     gpu)
         require_context
         echo "── memory.used / memory.free / utilization ──"
-        gpu_query memory.used,memory.free,utilization.gpu
+        gpu_out="$(gpu_query memory.used,memory.free,utilization.gpu)"
+        if [ -n "$gpu_out" ]; then
+            echo "$gpu_out"
+        else
+            # 침묵하지 않는다 — 예전에는 빈 출력이라 조회 실패를 알아채기 어려웠다.
+            echo "⚠️  조회 실패 — 컨테이너가 내려가 있고 베이스 이미지도 대상 daemon 에 없습니다."
+            echo "   → docker --context ${CONTEXT} pull ${IMAGE_REF}"
+        fi
         if [ "$CONTEXT" = "local" ] && command -v nvidia-smi >/dev/null 2>&1; then
             echo "── 점유 프로세스 ──"
             nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv
