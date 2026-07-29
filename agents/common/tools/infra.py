@@ -12,6 +12,7 @@ import shutil
 import socket
 import subprocess
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
@@ -95,6 +96,32 @@ def _docker(args: list[str], timeout: int = 20) -> tuple[int, str]:
 # 헬스 응답 본문을 읽을 때의 상한 (본문 파싱이 필요한 서비스에만 적용)
 MAX_HEALTH_BODY = 8192
 
+# 점검 실패 유형. 예외 타입으로 확실히 판별되는 것만 분류하고 나머지는 unknown 으로 둔다.
+# 에러 메시지 문자열은 파이썬 버전·OS·로케일에 따라 달라져 근거로 삼지 않는다.
+#   refused : 연결 거부 = 포트를 듣는 프로세스가 없음
+#   timeout : 연결/응답 시간 초과 = 프로세스는 있으나 응답하지 못함
+#   dns     : 이름 해석 실패 = 대상 자체가 없거나 네트워크 문제
+#   http_5xx: 앱은 살아 있고 내부 오류
+#   unknown : 위로 단정할 수 없음 (진단 근거로 쓰지 않는다)
+FAILURE_UNKNOWN = "unknown"
+
+
+def classify_failure(exc: BaseException) -> str:
+    """예외에서 확실히 판별되는 실패 유형만 반환. 애매하면 unknown."""
+    if isinstance(exc, urllib.error.HTTPError):
+        return f"http_{exc.code}"
+    # URLError 는 실제 원인을 reason 에 감싸 전달한다
+    inner = getattr(exc, "reason", None)
+    if isinstance(inner, BaseException):
+        return classify_failure(inner)
+    if isinstance(exc, ConnectionRefusedError):
+        return "refused"
+    if isinstance(exc, socket.gaierror):
+        return "dns"
+    if isinstance(exc, TimeoutError):  # socket.timeout 은 3.10+ 에서 동일 타입
+        return "timeout"
+    return FAILURE_UNKNOWN
+
 
 def _parse_airflow_health(body: bytes) -> tuple[str | None, str]:
     """airflow /health 본문에서 하위 컴포넌트 상태를 뽑는다.
@@ -131,7 +158,9 @@ def http_health(name: str, url: str, timeout: float = DEFAULT_TIMEOUT,
             code = resp.getcode()
             body = resp.read(MAX_HEALTH_BODY) if parse else b""
         latency = int((time.monotonic() - start) * 1000)
-        status = "up" if 200 <= code < 400 else "degraded"
+        ok = 200 <= code < 400
+        status = "up" if ok else "degraded"
+        failure = "" if ok else f"http_{code}"
         evidence = f"HTTP {code}"
         if parse == "airflow":
             override, detail = _parse_airflow_health(body)
@@ -139,11 +168,13 @@ def http_health(name: str, url: str, timeout: float = DEFAULT_TIMEOUT,
                 evidence += f", {detail}"
             if override and status == "up":
                 status = override
+                failure = "component_unhealthy"
         return {"name": name, "status": status, "latency_ms": latency,
-                "evidence": evidence}
+                "failure": failure, "evidence": evidence}
     except Exception as exc:  # noqa: BLE001
         latency = int((time.monotonic() - start) * 1000)
         return {"name": name, "status": "down", "latency_ms": latency,
+                "failure": classify_failure(exc),
                 "evidence": f"{type(exc).__name__}: {exc}"}
 
 
@@ -155,10 +186,11 @@ def tcp_check(name: str, host: str, port: int, timeout: float = DEFAULT_TIMEOUT)
             pass
         latency = int((time.monotonic() - start) * 1000)
         return {"name": name, "status": "up", "latency_ms": latency,
-                "evidence": f"TCP {host}:{port} open"}
+                "failure": "", "evidence": f"TCP {host}:{port} open"}
     except Exception as exc:  # noqa: BLE001
         latency = int((time.monotonic() - start) * 1000)
         return {"name": name, "status": "down", "latency_ms": latency,
+                "failure": classify_failure(exc),
                 "evidence": f"{type(exc).__name__}: {exc}"}
 
 
@@ -175,6 +207,7 @@ def check_services(targets: list[str] | None = None) -> list[dict[str, Any]]:
             out.append(tcp_check(n, host, port))
         else:
             out.append({"name": n, "status": "unknown", "latency_ms": 0,
+                        "failure": "unconfigured",
                         "evidence": "no health endpoint configured"})
     return out
 
