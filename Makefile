@@ -1,6 +1,7 @@
 .PHONY: help up down logs ps restart clean build init env-check psql airflow-shell mlflow-logs \
         ml-build ml-train ml-register-existing ml-predict ml-shell ml-up ml-down ml-logs gpu-check ml-prepare\
-        web-build web-up web-down web-logs web-restart
+        web-build web-up web-down web-logs web-restart \
+        llm-up llm-down llm-recreate llm-health llm-verify llm-logs llm-gpu
 
 # .env 가 있으면 모든 변수를 Makefile 에 자동 로딩 (psql 등 헬퍼에서 사용)
 ifneq (,$(wildcard .env))
@@ -127,3 +128,30 @@ web-restart:  ## 웹 컨테이너 재기동
 
 web-logs:  ## 웹 로그
 	$(COMPOSE) logs -f web
+
+# ──────────────────────────────
+# 외부 LLM 서빙 (별도 GPU 서버) — docker/llm-qwen/deploy.sh 위임
+#   설정은 루트 .env 의 LLM_* 섹션. 원격 제어는 docker context (기본 server8).
+# ──────────────────────────────
+LLM_DEPLOY := docker/llm-qwen/deploy.sh
+
+llm-up:  ## LLM 컨테이너 기동 (원격 GPU 서버)
+	$(LLM_DEPLOY) up
+
+llm-down:  ## LLM 컨테이너 종료
+	$(LLM_DEPLOY) down
+
+llm-recreate:  ## 플래그 변경 후 재생성 (restart 로는 안 바뀜)
+	$(LLM_DEPLOY) recreate
+
+llm-health:  ## /v1/models 응답 확인
+	$(LLM_DEPLOY) health
+
+llm-verify:  ## tool-call 파서 실측 검증 (모델/vLLM 교체 시 필수)
+	$(LLM_DEPLOY) verify
+
+llm-logs:  ## LLM 로그 follow
+	$(LLM_DEPLOY) logs
+
+llm-gpu:  ## GPU 점유 확인
+	$(LLM_DEPLOY) gpu
