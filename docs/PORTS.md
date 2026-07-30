@@ -39,6 +39,20 @@
 
 ---
 
+## 외부 LLM 서버 (별도 호스트)
+
+LLM 서빙은 **MLOps 스택과 다른 GPU 서버**에서 동작하므로 위 표의 포트 공간과 무관하다.
+저장소의 `8000`(Agent API Gateway 예약)과 번호가 겹쳐 보이지만 **다른 머신**이다.
+
+| 서비스 | 호스트 포트 | 상태 | 비고 |
+|---|---|---|---|
+| vLLM (`dais-llm`) | 8000 | **활성** | 정의 `docker/llm-qwen/`, 접속 주소는 `.env` 의 `LLM_BASE_URL` |
+
+> 서버 IP 는 코드/문서에 적지 않는다 (`@.claude/rules/security.md`).
+> `.env` 의 `LLM_HOST_IP` / `LLM_BASE_URL` 로만 관리한다.
+
+---
+
 ## 팀별 dev 포트 (공용 서버에서 동시 작업)
 
 > 여러 팀이 한 서버에 SSH로 들어와 **Agent 개발 → 웹 연결 테스트 → push** 한다.

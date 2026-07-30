@@ -87,5 +87,3 @@ docs/     # 아키텍처·포트·기여 가이드 등 문서  ·  scripts/ test
 | 모델/MLflow 워크플로우        | @docs/MLFLOW_WORKFLOW.md |
 | 외부 보관 코드 정책            | @docs/EXTERNAL_CODE.md   |
 | 개발 환경 셋업               | @docs/SETUP.md           |
-
-

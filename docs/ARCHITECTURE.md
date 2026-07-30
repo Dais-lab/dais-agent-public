@@ -9,7 +9,7 @@
 ```mermaid
 flowchart TB
     subgraph external[외부]
-        LLM[LLM Server<br/>8번 서버<br/>OpenAI 호환 API]
+        LLM[LLM Server<br/>외부 GPU 서버<br/>OpenAI 호환 API<br/>alias: dais-llm]
         LangSmith[LangSmith<br/>Tracing]
     end
 
@@ -61,7 +61,7 @@ flowchart TB
 | 운영 이미지 스토리지 | MinIO bucket 분리 (`mlflow-artifacts` ↔ `dais-images`) | MLflow 산출물과 운영 이미지(원본/heatmap/annotation) 분리 |
 | Agent 간 통신 | **없음** (각 Agent 독립 실행) | 각 Agent 는 자체 진입점, 단순한 의존 그래프 |
 | Agent Tracing | LangSmith | `LANGCHAIN_*` env 만 설정하면 자동 활성화 |
-| LLM | 외부 서버 (OpenAI 호환 endpoint) | 8번 서버 예시 — endpoint 변경은 `.env` 만 수정 |
+| LLM | 외부 GPU 서버 vLLM — `Qwen/Qwen3.6-35B-A3B-FP8`, 서빙 alias `dais-llm` | 모델 중립 alias 라 교체 시 클라이언트 수정 불필요. tool calling 실측 검증(`qwen3_coder`). 정의는 `docker/llm-qwen/`, 설정은 루트 `.env` 의 `LLM_*` |
 | 학습된 모델 관리 | MLflow Registry + `models:/dais_anomaly/Production` | stage 기반 (alias 마이그레이션 검토 중) |
 | GPU 컨테이너 분리 | `ml-train` (profile=train) / `ml-inference` (profile=ml) | `make up` 시 안 띄움 — GPU 자원 절약 |
 | 인프라 폴더명 | `docker/` | 도커 중심 구조 강조 |

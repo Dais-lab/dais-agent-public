@@ -10,7 +10,7 @@
 ## 0. 5분 요약
 
 - **인프라** (MLflow / Airflow / MinIO / Postgres / Grafana / Prometheus) 와 **DINOv3 anomaly detection** 파이프라인이 모두 동작하는 상태.
-- 외부 LLM(8번 서버)에 연결되는 `agents/common/get_llm()` factory 가 준비됐다.
+- 외부 GPU 서버의 LLM 에 연결되는 `agents/common/get_llm()` factory 가 준비됐다. **tool calling 사용 가능** (`llm.bind_tools([...])`).
 - 각 Agent 는 **독립 컨테이너**로 떠 있다 (`/health`, `/llm-check` 만 구현된 상태).
 - **너의 일** = 각 Agent 의 LangGraph 그래프 / 도구 / 프롬프트를 채우는 것.
 - DINOv3 가 만든 결과(`data/output/<case_id>/`) 를 **읽고 의사결정 내리는 것** 이 핵심.
@@ -22,7 +22,7 @@
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │   외부                                                            │
-│   • LLM (8번 서버, OpenAI 호환 endpoint)                          │
+│   • LLM (외부 GPU 서버, OpenAI 호환 endpoint)                     │
 │   • LangSmith (tracing)                                          │
 └──────────────────────────────────────────────────────────────────┘
                           ▲                ▲
@@ -161,9 +161,15 @@ meta = resp.json()  # data/output/<case_id>/meta.json 과 동일
 ```python
 from agents.common import get_llm, configure_tracing
 
-# 8번 서버 (OpenAI 호환) 에 연결된 ChatOpenAI 인스턴스
+# 외부 GPU 서버 (OpenAI 호환) 에 연결된 ChatOpenAI 인스턴스
 llm = get_llm()
 response = llm.invoke("Hello")    # LangSmith 에 자동 trace 기록
+
+# 도구 호출 — 파서 실측 검증됨 (docker/llm-qwen/verify_toolcall.py)
+llm_with_tools = get_llm().bind_tools([MyToolSchema])
+
+# 사고 과정이 필요한 호출에서만 (기본 off — 토큰 소모가 10배 이상)
+llm_think = get_llm(thinking=True)
 ```
 
 - `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` 은 `.env` 에서 읽음
