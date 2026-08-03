@@ -170,3 +170,7 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+# ===== 자체 벤치마크 (로컬 전용) =====
+# 장애 주입 실험용. 저장소에 올리지 않고 개발 환경에만 둔다.
+bench/
