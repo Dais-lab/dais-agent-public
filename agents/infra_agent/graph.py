@@ -287,7 +287,9 @@ DIAGNOSE_PROMPT = (
     "너는 MLOps 인프라 SRE 다. 아래 배포 구성과 점검 결과를 보고 각 이상 서비스의 "
     "근본 원인을 판단하라.\n\n[배포 구성]\n{topology}\n\n[점검 결과]\n{observations}\n\n"
     "제시된 사실만 근거로 삼고, 확인되지 않은 원인을 지어내지 마라. 근거가 부족하면 "
-    'root_cause 를 "unknown" 으로 두라.\n'
+    'root_cause 를 "unknown" 으로 두라. 기권할 때는 suggested_action 에 '
+    "무엇을 확인하면 원인을 확정할 수 있는지 적는다 — 확정된 원인의 조치와 "
+    "달리 다음 확인 절차를 담는 칸으로 쓴다.\n"
     "root_cause 와 suggested_action 은 한국어로 쓴다.\n"
     "JSON 배열로만 답하라. 각 원소 키: "
     '{{"service": str, "root_cause": str, "severity": "low|medium|high", '
