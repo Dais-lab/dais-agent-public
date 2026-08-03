@@ -302,6 +302,43 @@ services:
       - dais_network
 
   # ──────────────────────────────
+  # Docker socket proxy — 컨테이너 조회 전용 중계
+  # ──────────────────────────────
+  # Infra Agent 가 컨테이너 상태·종료 원인·로그를 읽어야 하지만, 소켓을 에이전트에
+  # 직접 마운트하면 호스트 docker 전체를 조작할 수 있는 권한을 주게 된다(read-only 위배).
+  # 소켓은 이 프록시만 가지고, 조회 엔드포인트만 통과시킨다. 쓰기(POST)는 전면 차단이라
+  # 에이전트가 뚫려도 컨테이너를 만들거나 지울 수 없다. 호스트 포트는 열지 않는다.
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    container_name: dais-docker-socket-proxy
+    environment:
+      CONTAINERS: 1   # 목록·inspect·logs 조회 허용
+      POST: 0         # 생성·삭제·재시작 등 상태 변경 전면 차단
+      EXEC: 0         # 컨테이너 내부 명령 실행 차단
+      IMAGES: 0
+      NETWORKS: 0
+      VOLUMES: 0
+      INFO: 0
+      SYSTEM: 0
+      SERVICES: 0
+      TASKS: 0
+      SWARM: 0
+      NODES: 0
+      SECRETS: 0
+      CONFIGS: 0
+      PLUGINS: 0
+      BUILD: 0
+      COMMIT: 0
+      AUTH: 0
+      DISTRIBUTION: 0
+      SESSION: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    networks:
+      - dais_network
+
+  # ──────────────────────────────
   # Grafana
   # ──────────────────────────────
   grafana:
@@ -388,6 +425,10 @@ services:
     environment:
       <<: *agent-common-env
       AGENT_NAME: infra_agent
+      # 컨테이너 조회는 프록시 경유(HTTP). 미설정 시 조회 기능만 비활성화된다.
+      DOCKER_API_BASE: http://docker-socket-proxy:2375
+    depends_on:
+      - docker-socket-proxy
     ports:
       - "8002:8000"
     healthcheck: *agent-healthcheck
