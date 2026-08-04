@@ -4,27 +4,29 @@ from __future__ import annotations
 from agents.infra_agent.graph import _parse_json_array
 
 
-def test_순수_배열():
+def test_plain_array() -> None:
     assert _parse_json_array('[{"service": "mlflow"}]') == [{"service": "mlflow"}]
 
 
-def test_코드펜스로_감싼_응답():
+def test_code_fenced_array() -> None:
+    """모델이 코드펜스로 감싸는 경우가 잦다."""
     raw = '```json\n[{"service": "minio"}]\n```'
     assert _parse_json_array(raw) == [{"service": "minio"}]
 
 
-def test_배열_앞뒤에_설명이_붙어도_뽑아낸다():
+def test_array_surrounded_by_prose() -> None:
     raw = '판단 결과입니다.\n[{"service": "postgres"}]\n이상입니다.'
     assert _parse_json_array(raw) == [{"service": "postgres"}]
 
 
-def test_깨진_json_은_빈_목록():
+def test_broken_json_returns_empty() -> None:
+    """빈 목록이면 규칙 폴백이 받는다."""
     assert _parse_json_array('[{"service": ') == []
 
 
-def test_배열이_아니면_빈_목록():
+def test_object_is_not_accepted() -> None:
     assert _parse_json_array('{"service": "mlflow"}') == []
 
 
-def test_빈_문자열():
+def test_empty_string() -> None:
     assert _parse_json_array("") == []
