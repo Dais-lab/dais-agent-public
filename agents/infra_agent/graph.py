@@ -367,7 +367,7 @@ def _rank_by_rule(state: AgentState,
     found: list[dict[str, Any]] = []
     unresolved: list[dict[str, Any]] = []
 
-    if isinstance(disk_pct, (int, float)) and disk_pct >= DISK_FULL_PCT:
+    if isinstance(disk_pct, int | float) and disk_pct >= DISK_FULL_PCT:
         found.append(_incident(
             "host", f"디스크 사용률 {disk_pct}%", "high",
             "불필요한 이미지·로그 정리 또는 볼륨 확장",
