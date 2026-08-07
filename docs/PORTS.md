@@ -16,11 +16,13 @@
 | PostgreSQL | 5432 | 5432 | △ | 예약 | dev only, prod 노출 X |
 | **Agent API Gateway** | 8000 | 8000 | O | 예약 | Agent 외부 진입점 (Phase 5+ 검토) |
 | Data Agent | 8001 | 8000 | O | **활성** | /health, /llm-check (Phase 5) |
-| Infra Agent | 8002 | 8000 | O | **활성** | /health, /llm-check (Phase 5) |
+| Infra Agent | 8002 | 8000 | O | **활성** | `/health`, `/run`(점검 1회), `/metrics`(Prometheus 스크랩) |
 | Correction Agent | 8003 | 8000 | O | **활성** | /health, /llm-check (Phase 5) |
 | **ml-inference** | 8004 | 8004 | O | **활성** | DINOv3 추론 FastAPI (`/health`, `/model`, `/predict`, `/reload`) — `make ml-up` |
 | **Web Backend** | 8005 | 8005 | O | **활성** | FastAPI 웹 대시보드 (`web/backend/`) |
 | Web Frontend (dev) | 5173 | 5173 | △ | 예약 | Vite dev 서버 — dev only. prod는 8005가 정적 서빙 |
+| Airflow Scheduler (health) | - | 8974 | X | **활성** | scheduler 자체 헬스 엔드포인트. webserver 의 /health 는 별개 프로세스라 scheduler 이상을 못 잡는다 |
+| docker-socket-proxy | - | 2375 | X | **활성** | Infra Agent 의 컨테이너 조회 중계. 조회만 통과시키고 호스트 포트는 열지 않는다 |
 
 ## 상태 표시 규칙
 - **예약**: 포트 번호만 잡아둠 (서비스 미구현)

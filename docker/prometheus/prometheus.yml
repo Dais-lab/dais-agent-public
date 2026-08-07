@@ -11,3 +11,11 @@ scrape_configs:
     static_configs:
       - targets:
           - localhost:9090
+
+  # Infra Agent 의 점검 결과. 스크랩 주기가 곧 측정 주기가 되어 시계열이 쌓인다.
+  # 별도 exporter 나 특권 컨테이너 없이 이미 도는 에이전트를 그대로 수집 대상으로 쓴다.
+  - job_name: infra-agent
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - infra-agent:8000

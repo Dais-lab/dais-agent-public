@@ -46,15 +46,20 @@ resp = llm.invoke("hello")  # LangSmith 에 자동 trace 기록
 
 | 항목 | 내용 |
 |---|---|
-| 책임 | MLOps 스택(ml-inference · Airflow · MLflow · MinIO · Postgres) 헬스 감시 → 이상 시 로그·지표로 원인 진단 → 구체적 복구 방법 제안 → 자연어 요약 알림. **인프라 상태는 변경하지 않음 (read-only)** |
+| 책임 | MLOps 스택(ml-inference · Airflow · MLflow · MinIO · Postgres · Prometheus) 헬스 감시 → 이상 시 컨테이너 상태·로그·응답시간 시계열로 원인 진단 → 복구 방법 제안 → 자연어 요약 알림. **인프라 상태는 변경하지 않음 (read-only)** |
+| 그래프 | `collect`(관측) → `detect`(탐지) →(이상 있음)→ `rank`(진단) → `explain`(해석) → `notify`(알림). 이상이 없으면 `detect` 에서 `explain` 으로 건너뛴다 |
+| 진단 방식 | **LLM 우선, 규칙 폴백.** LLM 에 배포 구성(의존 관계)과 점검 결과를 사실로 넘겨 판단시키고, LLM 이 죽거나 빈 결과를 내면 규칙 판정이 대신한다. 판단 주체는 `Incident.source`(`llm` / `rule`) 로 남는다 |
 | Trigger | ① Cron (주기 헬스체크, 2~5분 간격)  ② HTTP `POST /run` (수동·외부 알림으로 즉시 점검) |
 | Input Schema | `InfraCheckRequest` — `targets: list[str]`(점검 대상, 기본=전체) · `mode: "observe" \| "propose"`(observe=상태+알림, propose=원인 진단+복구 제안까지) · `trigger: "cron" \| "manual" \| "alert"` |
-| Output Schema | `InfraReport` — `overall: "healthy" \| "degraded" \| "down"` · `services: list[ServiceStatus{name, status, latency_ms, evidence}]` · `incidents: list[Incident{service, root_cause, severity, suggested_action, confidence, evidence}]` · `summary_ko: str`(Discord 알림 문구) · `notified: bool` |
-| 외부 시스템 의존 | docker(로그·상태 조회, 읽기) · ml-inference REST(:8004) · MLflow REST(:5000) · Airflow REST(:8080) · Prometheus(:9090) · Discord webhook(알림) |
-| Side Effects | **없음 — read-only.** 인프라 상태를 변경하지 않고 진단·제안만 수행. 유일한 외부 동작은 Discord 알림 발송 |
-| 재시도 정책 | 헬스체크 호출은 tenacity 2~3회(짧은 타임아웃). 1회 실패=불확실, 연속 실패=`down` 판정 (일시 변동 vs 지속 악화 구분) |
-| LLM 호출 횟수 | 정상 시 0회(룰 기반 통과). 이상 1건당 ≈2회(원인분석 1 + 요약 1). 가설 병렬검증 사용 시 가설 수만큼 추가 |
-| 포트 | 8002 |
+| Output Schema | `InfraReport` — `overall: "healthy" \| "degraded" \| "down"` · `services: list[ServiceStatus{name, status, latency_ms, failure, evidence}]` · `incidents: list[Incident{service, root_cause, severity, suggested_action, evidence, source}]` · `summary_ko: str`(Discord 알림 문구) · `notified: bool` |
+| 관측 채널 | ① 서비스 헬스체크(HTTP `/health` · TCP connect, 서비스별 동시 실행) ② 컨테이너 상태·`inspect`·로그(docker socket proxy 경유) ③ 응답시간 시계열(Prometheus) — 관측한 것은 요약하지 않고 원문 그대로 진단에 넘긴다 |
+| 실패 유형 | 예외 타입만으로 분류한다 — `refused`(포트에 수신 프로세스 없음) · `dns`(이름 해석 실패) · `timeout`(연결됐으나 무응답) · `http_N`(오류 코드 응답) · `unknown`. 응답 문자열을 해석하지 않으므로 라이브러리 문구가 바뀌어도 깨지지 않는다 |
+| 메트릭 노출 | `GET /metrics` — 점검 결과를 Prometheus 텍스트 포맷으로 내보낸다(`infra_service_up` / `degraded` / `latency_ms` / `failure` / `probe_duration_ms` / `services_total`). 요청이 오면 그 자리에서 점검하므로 **스크랩 주기가 곧 측정 주기**가 된다 |
+| 외부 시스템 의존 | docker socket proxy(컨테이너 조회 전용, 변경 차단) · ml-inference(:8004) · MLflow(:5000) · Airflow webserver(:8080) · Airflow scheduler(:8974) · MinIO(:9000) · Prometheus(:9090, 스크랩 대상이자 시계열 질의처) · Postgres(TCP 5432) · LLM 엔드포인트 · Discord webhook |
+| Side Effects | **없음 — read-only.** docker 는 프록시가 조회 요청만 통과시키고 `POST`·`EXEC` 는 차단한다. 유일한 외부 동작은 Discord 알림 발송이며, `overall` 이 `healthy` 면 보내지 않는다 |
+| 재시도 정책 | 헬스체크는 **1회 시도**(짧은 타임아웃). 재시도로 일시 변동을 거르는 대신, 실패 유형과 응답시간 시계열(평소 대비 편차)로 일시 변동과 지속 악화를 구분한다. LLM 호출만 `INFRA_LLM_RETRIES` 만큼 재시도한다 |
+| LLM 호출 횟수 | 정상 시 **0회**(`detect` 에서 진단을 건너뜀). 이상이 있으면 **2회 고정** — 진단 1회(이상 전체를 한 번에 판단) + 요약 1회. 이상 건수가 늘어도 호출 수는 그대로다 |
+| 포트 | 호스트 `8002` → 컨테이너 `8000` |
 
 ---
 
