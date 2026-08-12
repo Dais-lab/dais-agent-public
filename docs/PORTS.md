@@ -21,6 +21,7 @@
 | **ml-inference** | 8004 | 8004 | O | **활성** | DINOv3 추론 FastAPI (`/health`, `/model`, `/predict`, `/reload`) — `make ml-up` |
 | **Web Backend** | 8005 | 8005 | O | **활성** | FastAPI 웹 대시보드 (`web/backend/`) |
 | Web Frontend (dev) | 5173 | 5173 | △ | 예약 | Vite dev 서버 — dev only. prod는 8005가 정적 서빙 |
+| **vLLM (dais-llm)** | 8010 | 8000 | O | **활성** | Qwen3-VL-8B-Instruct 4bit, GPU 0. 정의 `docker/llm-qwen/` |
 | Airflow Scheduler (health) | - | 8974 | X | **활성** | scheduler 자체 헬스 엔드포인트. webserver 의 /health 는 별개 프로세스라 scheduler 이상을 못 잡는다 |
 | docker-socket-proxy | - | 2375 | X | **활성** | Infra Agent 의 컨테이너 조회 중계. 조회만 통과시키고 호스트 포트는 열지 않는다 |
 
@@ -41,14 +42,21 @@
 
 ---
 
-## 외부 LLM 서버 (별도 호스트)
+## LLM 서빙 (`docker/llm-qwen/`)
 
-LLM 서빙은 **MLOps 스택과 다른 GPU 서버**에서 동작하므로 위 표의 포트 공간과 무관하다.
-저장소의 `8000`(Agent API Gateway 예약)과 번호가 겹쳐 보이지만 **다른 머신**이다.
+**과거**: LLM 은 MLOps 스택과 **다른 GPU 서버**에서 8000 으로 서빙했다. 머신이 달라
+저장소의 `8000`(Agent API Gateway 예약)과 번호가 겹쳐도 충돌하지 않았다.
 
-| 서비스 | 호스트 포트 | 상태 | 비고 |
-|---|---|---|---|
-| vLLM (`dais-llm`) | 8000 | **활성** | 정의 `docker/llm-qwen/`, 접속 주소는 `.env` 의 `LLM_BASE_URL` |
+**현재**: 서버 이전으로 **MLOps 스택과 같은 머신의 GPU** 를 쓴다. 그래서 `8000` 이
+실제로 겹치게 되어 호스트 포트를 **`8010`** 으로 옮겼다. `8000` 은 Agent API Gateway
+예약으로 그대로 둔다.
+
+| 서비스 | 호스트 포트 | 컨테이너 포트 | 상태 | 비고 |
+|---|---|---|---|---|
+| vLLM (`dais-llm`) | 8010 | 8000 | **활성** | 호스트 포트는 `.env` 의 `LLM_HOST_PORT` |
+
+compose 프로젝트는 여전히 분리되어 있다(`-p dais` 가 아니라 `-p dais-llm`). 네트워크도
+`dais_network` 밖이라 Agent 는 호스트 포트를 경유해 접속한다 — 주소는 `.env` 의 `LLM_BASE_URL`.
 
 > 서버 IP 는 코드/문서에 적지 않는다 (`@.claude/rules/security.md`).
 > `.env` 의 `LLM_HOST_IP` / `LLM_BASE_URL` 로만 관리한다.
