@@ -166,8 +166,8 @@ check_disk() {
         [ -d "$cache" ] || { echo "⚠️  캐시 경로 없음: $cache"; return 0; }
         local avail
         avail=$(df -BG --output=avail "$cache" 2>/dev/null | tail -1 | tr -dc '0-9')
-        [ -n "$avail" ] && echo "▶ 캐시 디스크 여유: ${avail}GB (모델 37.5GB 필요)"
-        [ -n "$avail" ] && [ "$avail" -lt 50 ] && echo "   ⚠️ 여유가 빠듯합니다."
+        [ -n "$avail" ] && echo "▶ 캐시 디스크 여유: ${avail}GB (모델 약 7GB 필요)"
+        [ -n "$avail" ] && [ "$avail" -lt 20 ] && echo "   ⚠️ 여유가 빠듯합니다."
     else
         echo "▶ 디스크 점검은 원격 모드에서 생략합니다 (GPU 서버에서 df -h 로 확인하세요)."
     fi
@@ -200,7 +200,7 @@ case "${1:-up}" in
    준비:   $0 health
    검증:   $0 verify     ← tool-call 파서 확인, 반드시 실행
 
-⚠️  첫 기동은 모델 다운로드(37.5GB) + 로드로 시간이 걸립니다.
+⚠️  첫 기동은 모델 다운로드(약 7GB) + 로드로 시간이 걸립니다.
     'Application startup complete' 전에는 포트가 열리지 않습니다.
 EOF
         ;;
