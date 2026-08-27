@@ -1,0 +1,241 @@
+{
+ "_meta": {
+  "note": "목차에는 있으나 본문 청크가 없는 조항. 리포트 coverage_gap 근거.",
+  "listed": 100,
+  "missing": 29
+ },
+ "gaps": [
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "3.9",
+   "title": "Incomplete fusion",
+   "page": 2,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "3.13",
+   "title": "Non-linear or rounded indication",
+   "page": 3,
+   "kind": "absent",
+   "status": "OCR 원본에 해당 줄이 없음 — 재청킹으로는 복구 불가. 해당 쪽 재OCR 또는 수기 전사 필요"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "4.2.12.1",
+   "title": "Class 1",
+   "page": 6,
+   "kind": "absent",
+   "status": "OCR 원본에 해당 줄이 없음 — 재청킹으로는 복구 불가. 해당 쪽 재OCR 또는 수기 전사 필요"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "4.2.12.2",
+   "title": "Class 2 and 3",
+   "page": 6,
+   "kind": "absent",
+   "status": "OCR 원본에 해당 줄이 없음 — 재청킹으로는 복구 불가. 해당 쪽 재OCR 또는 수기 전사 필요"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "4.2.16.1",
+   "title": "Class 1",
+   "page": 7,
+   "kind": "absent",
+   "status": "OCR 원본에 해당 줄이 없음 — 재청킹으로는 복구 불가. 해당 쪽 재OCR 또는 수기 전사 필요"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "4.2.19",
+   "title": "Re-entrant angle",
+   "page": 8,
+   "kind": "absent",
+   "status": "OCR 원본에 해당 줄이 없음 — 재청킹으로는 복구 불가. 해당 쪽 재OCR 또는 수기 전사 필요"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "4.4",
+   "title": "Wrought materials (pipes, bars, plates, forgings, and extrusions)",
+   "page": 8,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.1",
+   "title": "General",
+   "page": 10,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2",
+   "title": "Welds",
+   "page": 10,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.1.2",
+   "title": "Burn through, melt through and crater pit",
+   "page": 10,
+   "kind": "absent",
+   "status": "OCR 원본에 해당 줄이 없음 — 재청킹으로는 복구 불가. 해당 쪽 재OCR 또는 수기 전사 필요"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.1.6.1",
+   "title": "General",
+   "page": 11,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.1.6.2",
+   "title": "Randomly dispersed porosity",
+   "page": 11,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.1.6.3",
+   "title": "Aligned porosity",
+   "page": 12,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.1.6.4",
+   "title": "Maximum pore diameter",
+   "page": 12,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.1.6.5",
+   "title": "Clustered porosity",
+   "page": 12,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.1.6.6",
+   "title": "Other indications",
+   "page": 12,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.1.9",
+   "title": "Undercut",
+   "page": 12,
+   "kind": "absent",
+   "status": "OCR 원본에 해당 줄이 없음 — 재청킹으로는 복구 불가. 해당 쪽 재OCR 또는 수기 전사 필요"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.2.3",
+   "title": "Slag",
+   "page": 14,
+   "kind": "absent",
+   "status": "OCR 원본에 해당 줄이 없음 — 재청킹으로는 복구 불가. 해당 쪽 재OCR 또는 수기 전사 필요"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.2.4.1",
+   "title": "Maximum area",
+   "page": 14,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.2.4.2",
+   "title": "Randomly dispersed porosity",
+   "page": 14,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.2.4.3",
+   "title": "Clustered porosity",
+   "page": 14,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.2.5",
+   "title": "Other defects",
+   "page": 14,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.2.5.1",
+   "title": "Consumable inserts",
+   "page": 14,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.2.5.2",
+   "title": "Root surface concavity",
+   "page": 15,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.2.5.3",
+   "title": "Root surface convexity",
+   "page": 15,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.2.5.4",
+   "title": "Root surface defect length",
+   "page": 15,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.2.5.5",
+   "title": "Verification",
+   "page": 15,
+   "kind": "unaddressable",
+   "status": "본문은 페이지 단위 청크에 있으나 절 번호로 인용할 수 없음 — 재청킹으로 복구 가능"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.3.3",
+   "title": "Slag",
+   "page": 15,
+   "kind": "absent",
+   "status": "OCR 원본에 해당 줄이 없음 — 재청킹으로는 복구 불가. 해당 쪽 재OCR 또는 수기 전사 필요"
+  },
+  {
+   "standard": "MIL-STD-2035A(SH)",
+   "section": "5.2.4.3",
+   "title": "Slag",
+   "page": 15,
+   "kind": "absent",
+   "status": "OCR 원본에 해당 줄이 없음 — 재청킹으로는 복구 불가. 해당 쪽 재OCR 또는 수기 전사 필요"
+  }
+ ]
+}

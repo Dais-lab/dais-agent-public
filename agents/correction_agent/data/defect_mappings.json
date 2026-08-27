@@ -1,0 +1,547 @@
+{
+  "_meta": {
+    "version": "v0",
+    "created": "2026-08-19",
+    "note": "사내 결함코드 15종 ↔ 적재 문서 조항 매핑. 조인 키는 our_code. 외부 표준의 코드 체계에 의존하지 않는다.",
+    "role_of_slots": {
+      "definition": "결함이 무엇인가",
+      "visual_acceptance": "육안·실물 기준 (MIL-STD §4.2)",
+      "rt_acceptance": "RT 영상 기준 (MIL-STD §5.2) — 우리 입력이 영상이므로 판정의 1차 근거",
+      "general": "검사·조치·수리 등 일반 규정 (49 CFR)",
+      "requirement": "요구사항 (NASA)"
+    },
+    "verified": "모든 citation_path 는 collection=standards 에 실재하는지 자동 검증됨 (validate_mappings.py)",
+    "aliases_source": "결함 유형.md 의 '검색 동의어' 줄에서 생성 (질의에서 결함코드를 탐지하는 데 쓴다)"
+  },
+  "defects": [
+    {
+      "our_code": "SD",
+      "name_en": "Surface Defect",
+      "name_ko": "표면 결함",
+      "location": "표면",
+      "milstd-2035a": {
+        "definition": [],
+        "visual_acceptance": [
+          "milstd-2035a#4.2.13",
+          "milstd-2035a#4.2.13.1",
+          "milstd-2035a#4.2.13.2"
+        ],
+        "rt_acceptance": [
+          "milstd-2035a#5.2.1.11"
+        ]
+      },
+      "49cfr192": {
+        "general": [
+          "49 CFR 192.309(a)",
+          "49 CFR 192.309(d)",
+          "49 CFR 192.309(e)"
+        ]
+      },
+      "nasa-std-5006a": {
+        "requirement": []
+      },
+      "gap": "정의 조항 없음. MIL-STD 는 gouge/grind mark/surface roughness 로만 다룬다",
+      "aliases": [
+        "dent",
+        "scratch",
+        "SD",
+        "surface damage",
+        "Surface Defect",
+        "긁힘",
+        "스크래치",
+        "찍힘",
+        "표면 결함",
+        "표면손상"
+      ]
+    },
+    {
+      "our_code": "CT",
+      "name_en": "Contamination",
+      "name_ko": "이물질",
+      "location": "표면",
+      "milstd-2035a": {
+        "definition": [],
+        "visual_acceptance": [],
+        "rt_acceptance": []
+      },
+      "49cfr192": {
+        "general": []
+      },
+      "nasa-std-5006a": {
+        "requirement": [
+          "NASA-STD-5006A § 4.6.2 a",
+          "NASA-STD-5006A § 4.6.2 b",
+          "NASA-STD-5006A § 4.3.2 b"
+        ]
+      },
+      "gap": "합격기준 전무. NASA 의 예방(청결 유지) 요구사항만 있어 '허용되는가' 에 답할 수 없다",
+      "aliases": [
+        "Contamination",
+        "contamination",
+        "CT",
+        "debris",
+        "foreign material",
+        "오염",
+        "이물질",
+        "잔존물"
+      ]
+    },
+    {
+      "our_code": "LF",
+      "name_en": "Lack of Fusion",
+      "name_ko": "융합부족",
+      "location": "내부",
+      "milstd-2035a": {
+        "definition": [],
+        "visual_acceptance": [
+          "milstd-2035a#4.2.6"
+        ],
+        "rt_acceptance": [
+          "milstd-2035a#5.2.1.5",
+          "milstd-2035a#5.2.2.2",
+          "milstd-2035a#5.2.3.2",
+          "milstd-2035a#5.2.4.2"
+        ]
+      },
+      "49cfr192": {
+        "general": []
+      },
+      "nasa-std-5006a": {
+        "requirement": [
+          "NASA-STD-5006A § 4.8.2 d"
+        ]
+      },
+      "gap": "정의 절 3.9 가 목차에는 있으나 청크 누락. RT 한계값은 Figure 26~28(p60~62)에 그림으로만 있어 텍스트로 못 읽는다",
+      "aliases": [
+        "incomplete fusion",
+        "Lack of Fusion",
+        "lack of fusion",
+        "LF",
+        "LOF",
+        "미융합",
+        "융착불량",
+        "융합부족",
+        "융합불량"
+      ]
+    },
+    {
+      "our_code": "IP",
+      "name_en": "Incomplete Penetration",
+      "name_ko": "용입부족",
+      "location": "내부",
+      "milstd-2035a": {
+        "definition": [
+          "milstd-2035a#3.10"
+        ],
+        "visual_acceptance": [],
+        "rt_acceptance": [
+          "milstd-2035a#5.2.1.5",
+          "milstd-2035a#5.2.2.2",
+          "milstd-2035a#5.2.3.2",
+          "milstd-2035a#5.2.4.2"
+        ]
+      },
+      "49cfr192": {
+        "general": []
+      },
+      "nasa-std-5006a": {
+        "requirement": []
+      },
+      "gap": "육안 기준 별도 조항 없음(§4.2 에 항목 자체가 없다). RT 한계값은 그림",
+      "aliases": [
+        "Incomplete Penetration",
+        "incomplete penetration",
+        "IP",
+        "lack of penetration",
+        "LOP",
+        "불완전 용입",
+        "용입부족",
+        "용입불량"
+      ]
+    },
+    {
+      "our_code": "PO",
+      "name_en": "Porosity",
+      "name_ko": "기공",
+      "location": "내부",
+      "milstd-2035a": {
+        "definition": [],
+        "visual_acceptance": [
+          "milstd-2035a#4.2.10"
+        ],
+        "rt_acceptance": [
+          "milstd-2035a#5.2.1.6",
+          "milstd-2035a#5.2.2.4",
+          "milstd-2035a#5.2.3.4",
+          "milstd-2035a#5.2.4.4"
+        ]
+      },
+      "49cfr192": {
+        "general": []
+      },
+      "nasa-std-5006a": {
+        "requirement": [
+          "NASA-STD-5006A § 4.8.2 d"
+        ]
+      },
+      "gap": "판정의 실체인 기공 차트 Figure 6~24(p40~57)가 그림이라 OCR 결과가 무의미. 조항은 '그림을 보라'고만 한다",
+      "aliases": [
+        "blowhole",
+        "gas pore",
+        "PO",
+        "porosity",
+        "Porosity",
+        "void",
+        "가스공",
+        "공동",
+        "기공",
+        "블로홀"
+      ]
+    },
+    {
+      "our_code": "SI",
+      "name_en": "Slag Inclusion",
+      "name_ko": "슬래그혼입",
+      "location": "내부",
+      "milstd-2035a": {
+        "definition": [],
+        "visual_acceptance": [
+          "milstd-2035a#4.2.15",
+          "milstd-2035a#4.2.15.1",
+          "milstd-2035a#4.2.15.2"
+        ],
+        "rt_acceptance": [
+          "milstd-2035a#5.2.1.5"
+        ]
+      },
+      "49cfr192": {
+        "general": []
+      },
+      "nasa-std-5006a": {
+        "requirement": []
+      },
+      "gap": "Class 별 RT 기준 5.2.2.3 / 5.2.3.3 / 5.2.4.3 이 전부 청크 누락 ★ 슬래그 RT 판정 불가",
+      "aliases": [
+        "flux",
+        "SI",
+        "slag",
+        "Slag Inclusion",
+        "slag inclusion",
+        "개재물",
+        "불순물",
+        "슬래그",
+        "슬래그혼입",
+        "혼입"
+      ]
+    },
+    {
+      "our_code": "BT",
+      "name_en": "Burn Through",
+      "name_ko": "용락",
+      "location": "내부",
+      "milstd-2035a": {
+        "definition": [
+          "milstd-2035a#3.4"
+        ],
+        "visual_acceptance": [
+          "milstd-2035a#4.2.5",
+          "milstd-2035a#4.2.7"
+        ],
+        "rt_acceptance": []
+      },
+      "49cfr192": {
+        "general": []
+      },
+      "nasa-std-5006a": {
+        "requirement": []
+      },
+      "gap": "RT 기준 5.2.1.2(burn through·melt through·crater pit) 청크 누락 ★",
+      "aliases": [
+        "BT",
+        "burn through",
+        "Burn Through",
+        "melt through",
+        "관통",
+        "번스루",
+        "용락"
+      ]
+    },
+    {
+      "our_code": "CR",
+      "name_en": "Crack",
+      "name_ko": "균열",
+      "location": "내부",
+      "milstd-2035a": {
+        "definition": [],
+        "visual_acceptance": [
+          "milstd-2035a#4.2.4"
+        ],
+        "rt_acceptance": [
+          "milstd-2035a#5.2.1.1"
+        ]
+      },
+      "49cfr192": {
+        "general": [
+          "49 CFR 192.245(a)",
+          "49 CFR 192.245(c)"
+        ]
+      },
+      "nasa-std-5006a": {
+        "requirement": [
+          "NASA-STD-5006A § 4.8.2 c"
+        ]
+      },
+      "gap": "정의 조항 없음. 다만 3문서 모두 '균열은 불허' 로 일치해 판정 자체는 명확",
+      "aliases": [
+        "cold crack",
+        "CR",
+        "crack",
+        "Crack",
+        "fissure",
+        "갈라짐",
+        "균열",
+        "저온균열",
+        "크랙"
+      ]
+    },
+    {
+      "our_code": "UC",
+      "name_en": "Under-Cut",
+      "name_ko": "언더컷",
+      "location": "표면",
+      "milstd-2035a": {
+        "definition": [],
+        "visual_acceptance": [
+          "milstd-2035a#4.2.16",
+          "milstd-2035a#4.2.16.2",
+          "milstd-2035a#4.2.17",
+          "milstd-2035a#4.2.18"
+        ],
+        "rt_acceptance": []
+      },
+      "49cfr192": {
+        "general": []
+      },
+      "nasa-std-5006a": {
+        "requirement": [
+          "NASA-STD-5006A § 4.8.2 b",
+          "NASA-STD-5006A § 4.8.2 e"
+        ]
+      },
+      "gap": "RT 기준 5.2.1.9 청크 누락 ★ 육안 기준(4.2.16)은 있으나 우리 입력은 RT 영상이다",
+      "aliases": [
+        "UC",
+        "under cut",
+        "Under-Cut",
+        "undercut",
+        "가장자리 파임",
+        "비드 가장자리 파임",
+        "언더컷"
+      ]
+    },
+    {
+      "our_code": "TI",
+      "name_en": "Tungsten Inclusion",
+      "name_ko": "텅스텐혼입",
+      "location": "내부",
+      "milstd-2035a": {
+        "definition": [
+          "milstd-2035a#3.18"
+        ],
+        "visual_acceptance": [],
+        "rt_acceptance": [
+          "milstd-2035a#5.2.1.3"
+        ]
+      },
+      "49cfr192": {
+        "general": []
+      },
+      "nasa-std-5006a": {
+        "requirement": [
+          "NASA-STD-5006A § 4.4.4 a",
+          "NASA-STD-5006A § 4.4.4 b"
+        ]
+      },
+      "gap": "정의 + RT 기준이 모두 있는 유일한 결함. 15종 중 커버리지 최상",
+      "aliases": [
+        "GTAW",
+        "TI",
+        "TIG",
+        "tungsten inclusion",
+        "Tungsten Inclusion",
+        "텅스텐 개재물",
+        "텅스텐 혼입",
+        "텅스텐혼입"
+      ]
+    },
+    {
+      "our_code": "PM",
+      "name_en": "Pork Mark",
+      "name_ko": "포크마크",
+      "location": "표면",
+      "milstd-2035a": {
+        "definition": [],
+        "visual_acceptance": [],
+        "rt_acceptance": []
+      },
+      "49cfr192": {
+        "general": []
+      },
+      "nasa-std-5006a": {
+        "requirement": []
+      },
+      "gap": "★ 매핑 0건. 코퍼스 전수 검색에서 pock/pork mark/surface pit 모두 0건 — abstain 대상",
+      "aliases": [
+        "PM",
+        "pockmark",
+        "pork mark",
+        "Pork Mark",
+        "포크마크",
+        "표면 기공 자국"
+      ]
+    },
+    {
+      "our_code": "RC",
+      "name_en": "Root Concavity",
+      "name_ko": "루트부오목",
+      "location": "내부",
+      "milstd-2035a": {
+        "definition": [
+          "milstd-2035a#3.15"
+        ],
+        "visual_acceptance": [
+          "milstd-2035a#4.2.1.2"
+        ],
+        "rt_acceptance": [
+          "milstd-2035a#p26"
+        ]
+      },
+      "49cfr192": {
+        "general": []
+      },
+      "nasa-std-5006a": {
+        "requirement": [
+          "NASA-STD-5006A § 4.8.2 e"
+        ]
+      },
+      "gap": "RT 기준 5.2.2.5.2 는 텍스트가 살아 있으나 페이지 단위 청크(#p26)에 묻혀 절 번호로 인용할 수 없다",
+      "aliases": [
+        "RC",
+        "Root Concavity",
+        "root concavity",
+        "suck back",
+        "루트 오목",
+        "루트부 오목",
+        "루트부오목",
+        "이면 오목"
+      ]
+    },
+    {
+      "our_code": "SP",
+      "name_en": "Spatter",
+      "name_ko": "스패터",
+      "location": "표면",
+      "milstd-2035a": {
+        "definition": [
+          "milstd-2035a#3.20",
+          "milstd-2035a#3.3"
+        ],
+        "visual_acceptance": [
+          "milstd-2035a#4.2.14",
+          "milstd-2035a#4.2.14.1",
+          "milstd-2035a#4.2.14.2",
+          "milstd-2035a#4.2.12"
+        ],
+        "rt_acceptance": [
+          "milstd-2035a#5.2.1.11"
+        ]
+      },
+      "49cfr192": {
+        "general": [
+          "49 CFR 192.309(c)"
+        ]
+      },
+      "nasa-std-5006a": {
+        "requirement": []
+      },
+      "gap": "없음 — 정의·육안·RT·규정이 모두 연결된다. CSV 쪽 정의만 비어 있다",
+      "aliases": [
+        "SP",
+        "spatter",
+        "Spatter",
+        "weld spatter",
+        "비산",
+        "스패터",
+        "용접 튐"
+      ]
+    },
+    {
+      "our_code": "OL",
+      "name_en": "Over lap",
+      "name_ko": "오버랩",
+      "location": "표면",
+      "milstd-2035a": {
+        "definition": [
+          "milstd-2035a#3.11"
+        ],
+        "visual_acceptance": [
+          "milstd-2035a#4.2.2.4",
+          "p16/TABLE/T1 row 4",
+          "p16/TABLE/T1 row 5"
+        ],
+        "rt_acceptance": []
+      },
+      "49cfr192": {
+        "general": []
+      },
+      "nasa-std-5006a": {
+        "requirement": [
+          "NASA-STD-5006A § 4.8.3.4 a",
+          "NASA-STD-5006A § 4.8.3.4 b"
+        ]
+      },
+      "gap": "⚠️ 개념 확인 필요 — CSV 정의는 '과대한 용접 비드'라 reinforcement 한계(Table I)로 매핑했으나, MIL-STD 3.11 Lap 은 '겹침'으로 다른 개념일 수 있다",
+      "aliases": [
+        "excessive reinforcement",
+        "OL",
+        "over lap",
+        "Over lap",
+        "overlap",
+        "겹침",
+        "과대 비드",
+        "오버랩"
+      ]
+    },
+    {
+      "our_code": "UF",
+      "name_en": "Underfill",
+      "name_ko": "언더필",
+      "location": "내부",
+      "milstd-2035a": {
+        "definition": [],
+        "visual_acceptance": [
+          "milstd-2035a#4.2.2.4"
+        ],
+        "rt_acceptance": []
+      },
+      "49cfr192": {
+        "general": []
+      },
+      "nasa-std-5006a": {
+        "requirement": [
+          "NASA-STD-5006A § 4.8.2 e"
+        ]
+      },
+      "gap": "'underfill' 이라는 용어가 코퍼스에 0건. 4.2.2.4(butt weld 표면이 모재면 아래로 내려가면 안 됨)가 사실상 동일 기준이라 연결한 것 — 용어가 아니라 의미로 매핑",
+      "aliases": [
+        "UF",
+        "under fill",
+        "underfill",
+        "Underfill",
+        "비드 부족",
+        "언더필",
+        "충전 부족"
+      ]
+    }
+  ]
+}

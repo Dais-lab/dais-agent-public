@@ -1,0 +1,26 @@
+{
+ "nasa-std-5006a": {
+  "doc_title": "NASA-STD-5006A w/Change 2 — General Welding Requirements for Aerospace Materials",
+  "source_url": "https://standards.nasa.gov/standard/nasa/nasa-std-5006",
+  "n_chunks": 166,
+  "status_note": "표지·개정이력에서 확인된 것: 1999-02-17 Baseline → 2015-07-31 Rev A → 2016-05-03 Change 1 → 2021-11-18 Change 2(재확인, 관리·편집 변경). APPROVED FOR PUBLIC RELEASE — DISTRIBUTION IS UNLIMITED. NASA 표준은 통상 5년 주기로 재확인하므로 2021 재확인 기준 기한이 지났을 수 있음. 현행 여부는 문서에 없어 확인되지 않음 — NASA Technical Standards System 확인 필요."
+ },
+ "milstd-2035a": {
+  "doc_title": "MIL-STD-2035A(SH) Nondestructive Testing Acceptance Criteria",
+  "source_url": "https://everyspec.com/MIL-STD/MIL-STD-2000-2999/MIL-STD-2035A_6636/",
+  "n_chunks": 503,
+  "status_note": "표지에서 확인된 것: 1995-05-15 발행, MIL-STD-2035(1991)을 대체, DISTRIBUTION STATEMENT A(공개 배포 무제한). 현행 유효 여부는 표지에 없어 확인되지 않음 — DoD ASSIST 등 외부 목록 확인 필요."
+ },
+ "49cfr192": {
+  "doc_title": "49 CFR Part 192 — Transportation of Natural and Other Gas by Pipeline: Minimum Federal Safety Standards",
+  "source_url": "https://www.ecfr.gov/current/title-49/part-192",
+  "n_chunks": 2766,
+  "status_note": "eCFR 공식 API에서 2026-08-10 기준 현행본을 수집. 2025-05-20(90 FR 21436) 개정 반영됨."
+ },
+ "defect-types": {
+  "doc_title": "용접 결함 유형 코드 정의 (사내 판정 코드표)",
+  "source_url": "vectordb/결함 유형.csv",
+  "n_chunks": 15,
+  "status_note": "사내 결함 판정 코드표(강관 원주 용접 / RT 판독). 2026-08-19 CSV 수신본을 옮긴 것. 결함의 정의·위치·형상만 담고 있으며 허용 한계(치수·등급)는 없다 — 합격/불합격 판정 근거로 인용 불가. 원본 CSV의 '비고4'(다른 코드로 판정되는 경우) 는 요청에 따라 제외했다. 작성 주체·개정 이력은 확인되지 않음."
+ }
+}
