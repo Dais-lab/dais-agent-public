@@ -433,12 +433,29 @@ services:
       - "8002:8000"
     healthcheck: *agent-healthcheck
 
+  # RAG(임베딩·리랭커) 때문에 공용 이미지가 아닌 전용 이미지를 쓴다.
+  # CPU 전용 torch — GPU 는 dais-llm 이 쓴다.
   correction-agent:
     <<: *agent-common
+    build:
+      context: ..
+      dockerfile: docker/agent-rag/Dockerfile
     container_name: dais-correction-agent
     environment:
       <<: *agent-common-env
       AGENT_NAME: correction_agent
+      # VectorDB — chroma.sqlite3 + UUID 폴더 + doc_metadata.json 은 한 세트다.
+      # 60MB 바이너리라 git 에 없다. scripts/build_vectordb.py 로 만든다.
+      VECTORDB_PATH: /opt/dais/vectordb
+      RAG_DEVICE: cpu
+      HF_HOME: /opt/dais/hf-cache
+    volumes:
+      - ../data:/opt/dais/data:rw
+      # ⚠️ ro 로 걸면 안 된다. Chroma 는 조회만 해도 sqlite 에 쓰기를 시도한다.
+      - correction_vectordb:/opt/dais/vectordb:rw
+      # 임베딩 2.2GB + 리랭커 2.2GB. 이미지에 굽지 않고 볼륨에 캐시한다.
+      # 없으면 컨테이너를 띄울 때마다 다시 받는다.
+      - correction_hf_cache:/opt/dais/hf-cache:rw
     ports:
       - "8003:8000"
     healthcheck: *agent-healthcheck
@@ -489,6 +506,10 @@ services:
 #  - ./airflow/dags       : 호스트 마운트 (코드 즉시 반영)
 # ──────────────────────────────
 volumes:
+  correction_vectordb:
+    name: dais_correction_vectordb
+  correction_hf_cache:
+    name: dais_correction_hf_cache
   postgres_data:
     name: dais_postgres_data
   minio_data:

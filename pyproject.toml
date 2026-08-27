@@ -30,6 +30,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Correction Agent 의 RAG 만 쓰는 의존성. 공용 이미지에는 넣지 않는다.
+# torch 는 CPU 휠을 별도로 먼저 설치한다 (docker/agent-rag/Dockerfile 참고).
+rag = [
+    "chromadb>=1.0",
+    "sentence-transformers>=3.0",
+    "rank-bm25>=0.2.2",
+]
+
 dev = [
     "ruff>=0.6.0",
     "mypy>=1.11.0",

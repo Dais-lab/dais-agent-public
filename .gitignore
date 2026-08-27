@@ -55,10 +55,16 @@ Thumbs.db
 
 # ===== Data =====
 # 실제 데이터는 무시하되 폴더 구조와 README 는 git 에 살림
-data/
-!data/README.md
-!data/**/
-!data/**/.gitkeep
+# ⚠️ `data/` 는 모든 깊이의 data 디렉터리에 걸린다. 루트만 대상으로 한정한다.
+/data/
+!/data/README.md
+!/data/**/
+!/data/**/.gitkeep
+
+# ===== Correction Agent VectorDB (재생성 가능) =====
+# chroma.sqlite3(25MB) + 벡터 폴더(35MB). 원본 청크(data/chunks/)와
+# 사내 결함 유형표는 커밋하므로 scripts/build_vectordb.py 로 다시 만들 수 있다.
+agents/correction_agent/vectordb/
 
 # ===== Model Weights =====
 # 사전훈련 / 학습된 모델 가중치 (.pth, 1GB+ 파일)
