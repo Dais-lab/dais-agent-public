@@ -67,12 +67,37 @@ resp = llm.invoke("hello")  # LangSmith 에 자동 trace 기록
 
 | 항목 | 내용 |
 |---|---|
-| 책임 | TBD — 사후 보정 (모델 출력 보정/검증/재학습 트리거 등) |
-| Trigger | TBD |
-| Input Schema | TBD |
-| Output Schema | TBD |
-| 외부 시스템 의존 | TBD |
+| 책임 | 결함 유형을 받아 **판정 근거가 될 표준 조항을 찾아 넘긴다.** pass/fail 은 결정하지 않는다 |
+| Trigger | `POST /rag/evidence` — 결함 분류 담당이 호출 |
+| Input Schema | `defect_label` · `inspection_method` · `measurements` · `required_class` · `question` |
+| Output Schema | `evidence[]` · `limit_check` · `missing_info[]` · `coverage_gap[]` · `applicability_note` · `abstain` |
+| 외부 시스템 의존 | VectorDB(Chroma, 로컬 볼륨) · 임베딩/리랭커 모델(HF 캐시). **LLM·DB·MinIO 불필요** |
 | 포트 | 8003 |
+
+### 엔드포인트
+
+| | 용도 |
+|---|---|
+| `GET /rag/status` | VectorDB · 모델 적재 상태. `vectordb_ready` 가 false 면 build 필요 |
+| `POST /rag/evidence` | 결함 유형 → 근거 번들 |
+| `POST /rag/validate` | 호출자 LLM 답변에 **없는 조항이 인용됐는지** 검사 (가드레일 G1) |
+
+### 호출자가 지킬 것
+
+1. **`validate()` 를 통과시킨 뒤에만 저장·표시한다.** 조항 날조가 이 도메인 최대 리스크이고 문자열 대조로 자동 검출된다.
+2. **`limit_check` 의 숫자를 LLM 이 다시 계산하게 하지 않는다.** LLM 은 `1/64 inch` 를 1.5875mm 로 답한다(정답 0.3969).
+3. **`abstain` 이면 답을 만들지 않는다.** 근거 0건 상태에서 LLM 을 호출하면 반드시 지어낸다.
+
+### 준비
+
+VectorDB 는 60MB 바이너리라 git 에 없다. 컨테이너 첫 기동 후 한 번 만든다.
+
+```bash
+docker compose -f docker/docker-compose.yml exec correction-agent \
+    python -m agents.correction_agent.scripts.build_vectordb
+```
+
+상세는 `agents/correction_agent/README.md`.
 
 ---
 
